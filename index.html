@@ -142,15 +142,16 @@ body.has-mini .wrap{padding-bottom:160px}
 </div>
 
 <div class="modal-backdrop" id="song-modal"><div class="modal"><div class="modal-head"><h2 id="song-modal-title">노래 추가</h2><button class="close" data-close>×</button></div><form id="song-form"><input type="hidden" id="song-id"><input type="hidden" id="f-preview">
-<div class="api-search"><div class="api-search-head"><strong>음악 검색</strong><small>곡명이나 아티스트명 중 하나만 입력해도 돼요. 둘 다 입력하면 더 정확해요.</small></div>
-<div class="api-search-line"><input id="api-song-title" placeholder="곡명"><input id="api-song-artist" placeholder="아티스트명"><button type="button" class="btn small" id="api-song-search">검색</button></div>
+<div class="api-search"><div class="api-search-head"><strong>음악 검색</strong><small>검색 기준을 고르고 입력하세요. 기본은 통합 검색이에요.</small></div>
+<div class="seg" id="api-song-scope" role="group" aria-label="검색 기준" style="margin-bottom:8px;width:fit-content"><button type="button" data-sscope="all" class="on">통합</button><button type="button" data-sscope="title">곡명</button><button type="button" data-sscope="artist">아티스트명</button></div>
+<div class="api-search-line"><input id="api-song-query" placeholder="곡명 또는 아티스트 검색"><button type="button" class="btn small" id="api-song-search">검색</button></div>
+<div class="api-hint" style="padding:6px 2px 0">곡명·아티스트명으로 검색했는데 원하는 곡이 안 나오면 '통합'으로 바꿔 다시 검색해 보세요.</div>
 <div class="api-results" id="api-song-results"></div></div>
 <div class="form-grid">
 <div class="field"><label>곡명 *</label><input id="f-title" required></div><div class="field"><label>아티스트 *</label><input id="f-artist" required></div>
 <div class="field"><label>앨범</label><input id="f-album"></div><div class="field"><label>발매 연도</label><input id="f-year" type="number" min="1900" max="2100"></div>
 <div class="field"><label>장르</label><input id="f-genre" placeholder="예: 인디 록"></div>
 <div class="field"><label>사운드</label><input id="f-sound" placeholder="예: 기타, 신스"></div><div class="field full" style="display:none"><label>커버 이미지 주소</label><input id="f-cover" type="text"></div>
-<div class="field full"><label>이 곡을 좋아하는 이유</label><textarea id="f-note"></textarea></div>
 <div class="field full"><label>가사 <button type="button" class="link" id="lyr-fetch" style="margin-left:8px">자동 검색</button></label><textarea id="f-lyrics" style="min-height:130px"></textarea></div>
 </div><div class="modal-actions"><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
 
@@ -212,13 +213,13 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModals()});
 document.addEventListener('play',e=>{if(e.target.tagName==='AUDIO')document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()})},true);
 
 const resetSearch=(sel,msg)=>{$(sel).innerHTML=`<div class="api-hint">${msg}</div>`};
-$('#add-song').onclick=()=>{$('#song-form').reset();$('#song-id').value='';$('#f-preview').value='';$('#api-song-title').value='';$('#api-song-artist').value='';resetSearch('#api-song-results','검색 결과를 선택하면 곡 정보와 앨범 커버가 자동으로 입력됩니다.');$('#song-modal-title').textContent='노래 추가';openModal('song-modal')};
+$('#add-song').onclick=()=>{$('#song-form').reset();$('#song-id').value='';$('#f-preview').value='';$('#api-song-query').value='';resetSearch('#api-song-results','검색 결과를 선택하면 곡 정보와 앨범 커버가 자동으로 입력됩니다.');$('#song-modal-title').textContent='노래 추가';openModal('song-modal')};
 $('#add-album').onclick=()=>{$('#album-form').reset();$('#album-id').value='';$('#api-album-query').value='';resetSearch('#api-album-results','검색 결과에서 앨범을 선택하면 정보가 자동으로 입력됩니다.');$('#album-delete').style.display='none';$('#album-tracks').innerHTML='';$('#album-modal-title').textContent='앨범 추가';openModal('album-modal')};
-function editSong(id){const s=songs.find(x=>x.id===id);if(!s)return;$('#song-form').reset();$('#song-id').value=id;$('#f-preview').value=s.preview||'';['title','artist','album','year','genre','sound','cover','note','lyrics'].forEach(k=>$('#f-'+k).value=s[k]||'');resetSearch('#api-song-results','검색 결과를 선택하면 정보가 다시 입력됩니다.');$('#song-modal-title').textContent='노래 수정';openModal('song-modal')}
+function editSong(id){const s=songs.find(x=>x.id===id);if(!s)return;$('#song-form').reset();$('#song-id').value=id;$('#f-preview').value=s.preview||'';['title','artist','album','year','genre','sound','cover','lyrics'].forEach(k=>$('#f-'+k).value=s[k]||'');resetSearch('#api-song-results','검색 결과를 선택하면 정보가 다시 입력됩니다.');$('#song-modal-title').textContent='노래 수정';openModal('song-modal')}
 function editAlbum(id){const a=albums.find(x=>x.id===id);if(!a)return;$('#album-form').reset();$('#album-id').value=id;['title','artist','year','genre','cover','note'].forEach(k=>$('#a-'+k).value=a[k]||'');resetSearch('#api-album-results','검색 결과에서 앨범을 선택하면 정보가 다시 입력됩니다.');$('#album-delete').style.display='';const tr=songs.filter(s=>s.album&&s.album.toLowerCase()===a.title.toLowerCase()&&s.artist.toLowerCase()===a.artist.toLowerCase());$('#album-tracks').innerHTML=tr.length?`<label>수록곡 (${tr.length})</label>`+tr.map(s=>`<div class="trk"><span>${esc(s.title)}</span>${s.fav?'<b style="color:#ff7a8a">♥</b>':''}${s.preview?`<button type="button" class="icon-btn" onclick="playSong('${s.id}')">▶</button>`:''}</div>`).join(''):'';$('#album-modal-title').textContent='앨범 수정';openModal('album-modal')}
 $('#song-form').onsubmit=e=>{e.preventDefault();const id=$('#song-id').value;
   if(!id&&songs.some(x=>skey(x)===($('#f-title').value.trim()+'|'+$('#f-artist').value.trim()).toLowerCase())&&!confirm('이미 등록된 곡이에요. 그래도 추가할까요?'))return;
-  const s={id:id||uid(),title:$('#f-title').value.trim(),artist:$('#f-artist').value.trim(),album:$('#f-album').value.trim(),year:$('#f-year').value,genre:$('#f-genre').value.trim(),sound:$('#f-sound').value.trim(),cover:$('#f-cover').value.trim(),note:$('#f-note').value.trim(),lyrics:$('#f-lyrics').value.trim(),preview:$('#f-preview').value,fav:id?!!songs.find(x=>x.id===id)?.fav:false,created:id?(songs.find(x=>x.id===id)?.created||Date.now()):Date.now()};
+  const s={id:id||uid(),title:$('#f-title').value.trim(),artist:$('#f-artist').value.trim(),album:$('#f-album').value.trim(),year:$('#f-year').value,genre:$('#f-genre').value.trim(),sound:$('#f-sound').value.trim(),cover:$('#f-cover').value.trim(),note:id?(songs.find(x=>x.id===id)?.note||''):'',lyrics:$('#f-lyrics').value.trim(),preview:$('#f-preview').value,fav:id?!!songs.find(x=>x.id===id)?.fav:false,created:id?(songs.find(x=>x.id===id)?.created||Date.now()):Date.now()};
   if(id)songs=songs.map(x=>x.id===id?s:x);else songs.unshift(s);
   if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))albums.unshift({id:uid(),title:s.album,artist:s.artist,year:s.year,genre:s.genre,cover:s.cover,note:'',created:Date.now()});
   save();closeModals();render();toast(id?'곡 정보를 수정했어요.':'새로운 곡을 추가했어요.')};
@@ -461,8 +462,7 @@ function showApiResults(container,items,type){
 }
 function runAppleSearch(type){
   const isSong=type==='song';
-  const t=isSong?$('#api-song-title').value.trim():'',a=isSong?$('#api-song-artist').value.trim():'';
-  const query=isSong?(t+' '+a).trim():$('#api-album-query').value.trim();
+  const query=isSong?$('#api-song-query').value.trim():$('#api-album-query').value.trim();
   const container=isSong?$('#api-song-results'):$('#api-album-results');
   const button=isSong?$('#api-song-search'):$('#api-album-search');
   if(!query){toast(isSong?'곡명이나 아티스트명을 입력해 주세요.':'검색어를 입력해 주세요.');return}
@@ -472,19 +472,23 @@ function runAppleSearch(type){
     button.disabled=false;button.textContent='검색';
     if(data.error){container.innerHTML='<div class="api-hint">음악 검색 서버에 연결하지 못했어요. 인터넷 연결을 확인하고, 광고 차단기를 꺼 보거나 파일을 브라우저에서 직접 열어 다시 시도해 주세요.</div>';return}
     let results=data.results||[];
-    if(isSong&&t&&a){ // 곡명·아티스트 둘 다 입력하면 둘 다 맞는 결과만 보여줌
-      const nt=recNorm(t),na=recNorm(a),hit=(x,y)=>x&&y&&(x.includes(y)||y.includes(x));
-      const ok=results.filter(x=>hit(recNorm(x.trackName),nt)&&hit(recNorm(x.artistName),na));
-      if(ok.length)results=ok;
+    if(isSong&&songSearchScope!=='all'){ // 곡명/아티스트명 기준이면 해당 항목이 맞는 결과만 보여줌
+      const nq=recNorm(query),key=songSearchScope==='title'?'trackName':'artistName';
+      results=results.filter(x=>recNorm(x[key]).includes(nq));
     }
     showApiResults(container,results,type);
   };
-  if(isSong&&t&&a)searchMusic('artist:"'+a.replace(/"/g,'')+'" track:"'+t.replace(/"/g,'')+'"','song',done,t+' '+a);
+  const qq=query.replace(/"/g,'');
+  if(isSong&&songSearchScope==='title')searchMusic('track:"'+qq+'"','song',done,qq);
+  else if(isSong&&songSearchScope==='artist')searchMusic('artist:"'+qq+'"','song',done,qq);
   else searchMusic(query,type,done);
 }
 $('#api-song-search').addEventListener('click',()=>runAppleSearch('song'));
 $('#api-album-search').addEventListener('click',()=>runAppleSearch('album'));
-['title','artist'].forEach(k=>$('#api-song-'+k).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runAppleSearch('song')}}));
+$('#api-song-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runAppleSearch('song')}});
+let songSearchScope='all';
+function setSongScope(v){songSearchScope=v;document.querySelectorAll('#api-song-scope button').forEach(b=>b.classList.toggle('on',b.dataset.sscope===v));$('#api-song-query').placeholder=v==='title'?'곡명으로 검색':v==='artist'?'아티스트명으로 검색':'곡명 또는 아티스트 검색'}
+document.querySelectorAll('#api-song-scope button').forEach(b=>b.addEventListener('click',()=>setSongScope(b.dataset.sscope)));
 $('#api-album-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runAppleSearch('album')}});
 // 수록곡도 감상 메모도 없는 앨범 일괄 정리 (예전에 지운 곡의 잔여 앨범용)
 $('#clean-albums').onclick=()=>{
@@ -648,7 +652,7 @@ async function showSimilar(id){
 function addRecommended(item){
   closeModals();
   $('#song-form').reset();$('#song-id').value='';$('#f-preview').value='';
-  $('#api-song-title').value=item.title;$('#api-song-artist').value=item.artist;
+  setSongScope('all');$('#api-song-query').value=item.title+' '+item.artist;
   $('#f-title').value=item.title;$('#f-artist').value=item.artist;
   $('#song-modal-title').textContent='노래 추가';openModal('song-modal');
   const container=$('#api-song-results');
