@@ -161,7 +161,7 @@ body.has-mini .wrap{padding-bottom:160px}
     <select id="pl-format"><option value="title-artist">곡명 - 아티스트</option><option value="artist-title">아티스트 - 곡명</option></select>
     <label class="btn secondary small" for="pl-file" style="margin:0">파일 선택</label><input type="file" id="pl-file" accept=".txt,.csv,.tsv,text/plain" style="display:none">
   </div>
-  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기</label>
+  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기 (미리듣기 없는 곡은 제외)</label>
   <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-sound"> 사운드 태그도 자동 채우기 (더 오래 걸려요)</label>
   <div class="api-status" id="pl-status"></div>
   <div class="modal-actions"><button type="button" class="btn secondary" id="pl-cancel" style="display:none">중단</button><button type="button" class="btn secondary" data-close>닫기</button><button type="button" class="btn" id="pl-run">가져오기</button></div>
@@ -765,7 +765,7 @@ $('#pl-run').onclick=async()=>{
   if(!items.length){toast('인식된 곡이 없어요. 형식을 확인해 주세요.');return}
   const lookup=$('#pl-lookup').checked,wantSound=$('#pl-sound').checked,st=$('#pl-status');
   const keys=new Set(songs.map(skey)),fresh=[],newAlbums=[],base=Date.now();
-  let dup=0,found=0,done=0;
+  let dup=0,found=0,done=0,nop=0;
   plBusy=true;plCancel=false;$('#pl-run').disabled=true;$('#pl-cancel').style.display='';
   for(let i=0;i<items.length&&!plCancel;i++){
     const it=items[i];st.textContent=`처리 중 ${i+1} / ${items.length} · ${it.title}`;
@@ -794,6 +794,7 @@ $('#pl-run').onclick=async()=>{
       }catch(e){}
       await new Promise(r=>setTimeout(r,120)); // API 호출 간격
     }
+    if(lookup&&!s.preview){nop++;continue} // 미리듣기 없는 곡은 제외
     if(wantSound)s.sound=await plSound(s.artist,s.title);
     fresh.push(s);done++;
     if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase())&&!newAlbums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))
@@ -802,7 +803,7 @@ $('#pl-run').onclick=async()=>{
   songs=[...fresh,...songs];albums=[...newAlbums,...albums];
   save();render();
   plBusy=false;$('#pl-run').disabled=false;$('#pl-cancel').style.display='none';
-  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${plCancel?' · 중단됨':''}`;
+  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${nop?` · 미리듣기 없음 ${nop}곡 제외`:''}${plCancel?' · 중단됨':''}`;
   st.textContent=msg;toast(msg);
 };
 render();
