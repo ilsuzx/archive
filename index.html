@@ -89,7 +89,7 @@ body.has-mini .wrap{padding-bottom:160px}
 </section>
 
 <section class="page" id="page-songs">
-  <div class="head"><h1>노래</h1><button class="btn" id="add-song">노래 추가</button></div>
+  <div class="head"><h1>노래</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="import-pl">플레이리스트 가져오기</button><button class="btn" id="add-song">노래 추가</button></div></div>
   <div class="toolbar"><input class="search" id="song-search" placeholder="곡명 또는 아티스트 검색"><div class="seg" id="song-scope" role="group" aria-label="검색 기준"><button type="button" data-scope="all" class="on">전체</button><button type="button" data-scope="title">곡명</button><button type="button" data-scope="artist">아티스트명</button></div></div>
   <div class="fbar"><select id="genre-filter"></select><select id="artist-filter"></select><select id="year-filter"></select><select id="song-sort"><option value="new">최근 추가순</option><option value="title">제목순</option><option value="artist">아티스트순</option><option value="year">연도순</option><option value="fav">즐겨찾기 우선</option></select><button type="button" class="btn secondary small" id="fav-filter">♥ 즐겨찾기</button><button type="button" class="btn ghost small" id="filter-reset">초기화</button></div>
   <div class="count" id="song-count"></div>
@@ -152,6 +152,21 @@ body.has-mini .wrap{padding-bottom:160px}
 
 <div class="modal-backdrop" id="profile-modal"><div class="modal"><div class="modal-head"><h2>소개 수정</h2><button class="close" data-close>×</button></div><div class="field"><textarea id="profile-text"></textarea></div><div class="modal-actions"><button class="btn secondary" data-close>취소</button><button class="btn" id="save-profile">저장</button></div></div></div>
 <div class="modal-backdrop" id="sim-modal"><div class="modal"><div class="modal-head"><h2 id="sim-title">비슷한 곡</h2><button class="close" data-close>×</button></div><div class="api-results" id="sim-results" style="max-height:60vh"></div></div></div>
+
+<div class="modal-backdrop" id="pl-modal"><div class="modal">
+  <div class="modal-head"><h2>플레이리스트 가져오기</h2><button class="close" data-close>×</button></div>
+  <p class="taste-text" style="margin:0 0 12px;font-size:13px">한 줄에 한 곡씩 붙여넣거나 txt/csv 파일을 선택하세요.<br>지원: 애플 뮤직 복사/내보내기(탭 구분) · 곡명 - 아티스트 · CSV</p>
+  <div class="field"><textarea id="pl-text" style="min-height:170px" placeholder="예)&#10;Hype Boy - NewJeans&#10;Ditto&#9;NewJeans&#9;OMG"></textarea></div>
+  <div class="toolbar" style="margin-top:10px;align-items:center">
+    <select id="pl-format"><option value="title-artist">곡명 - 아티스트</option><option value="artist-title">아티스트 - 곡명</option></select>
+    <label class="btn secondary small" for="pl-file" style="margin:0">파일 선택</label><input type="file" id="pl-file" accept=".txt,.csv,.tsv,text/plain" style="display:none">
+  </div>
+  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기</label>
+  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-sound"> 사운드 태그도 자동 채우기 (더 오래 걸려요)</label>
+  <div class="api-status" id="pl-status"></div>
+  <div class="modal-actions"><button type="button" class="btn secondary" id="pl-cancel" style="display:none">중단</button><button type="button" class="btn secondary" data-close>닫기</button><button type="button" class="btn" id="pl-run">가져오기</button></div>
+</div></div>
+
 <div class="toast" id="toast"></div>
 <div class="mini" id="mini" style="display:none"><button id="mini-toggle" aria-label="재생/일시정지">▶</button><div class="mini-info"><strong id="mini-title"></strong><span id="mini-artist"></span></div><input type="range" id="mini-seek" min="0" max="100" value="0" aria-label="재생 위치"><button id="mini-close" aria-label="닫기">×</button></div>
 <audio id="player" preload="none"></audio>
@@ -686,6 +701,109 @@ $('#rec-btn').onclick=async()=>{
     else renderRecList(box,list,{cap:15,pageSize:5,onShow:c=>recSeen.add(skey(c))});
   }catch(e){box.innerHTML='<div class="api-hint">추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'}
   btn.disabled=false;btn.textContent='다시 추천 받기';
+};
+
+// ===== 플레이리스트 가져오기 =====
+const PL_COL={title:/^(name|title|track( name)?|song|이름|곡명?|제목|노래)$/i,artist:/^(artist|아티스트)$/i,album:/^(album|앨범)$/i,genre:/^(genre|장르)$/i,year:/^(year|연도|발매.*|release.*)$/i};
+function csvSplit(l){const o=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===','){o.push(c.trim());c=''}else c+=ch}o.push(c.trim());return o}
+function parsePlaylist(text,fmt){
+  // 애플 뮤직 내보내기는 줄바꿈이 \r(구형 Mac)인 경우가 있어 \r\n, \r, \n 모두 처리
+  const lines=text.replace(/^\uFEFF/,'').split(/\r\n|\r|\n/).filter(l=>l.trim());
+  const items=[],isTime=/^\d{1,2}:\d{2}(:\d{2})?$/;let map=null;
+  lines.forEach((raw,idx)=>{
+    const line=raw.trim(),dash=/\s[-–—]\s/.test(line);
+    let c=null;
+    if(raw.includes('\t'))c=raw.split('\t').map(x=>x.trim());
+    else if(!dash&&line.includes(','))c=csvSplit(line);
+    let t='',a='',al='',g='',y='';
+    if(c){
+      if(idx===0&&c.some(x=>PL_COL.title.test(x))&&c.some(x=>PL_COL.artist.test(x))){
+        map={};c.forEach((x,i)=>{for(const k in PL_COL)if(!(k in map)&&PL_COL[k].test(x))map[k]=i});return}
+      if(map){t=c[map.title];a=c[map.artist];al=c[map.album]||'';g=c[map.genre]||'';y=c[map.year]||''}
+      else{const f=c.filter(x=>x&&!isTime.test(x));[t,a,al]=f;if(fmt==='artist-title')[t,a]=[a,t]}
+    }else if(dash){
+      const m=line.split(/\s[-–—]\s/),x=m.shift(),z=m.join(' - ');
+      if(fmt==='artist-title'){a=x;t=z}else{t=x;a=z}
+    }
+    t=(t||'').trim();a=(a||'').trim();
+    if(!t||!a)return;
+    const yy=String(y).match(/\d{4}/);
+    items.push({title:t,artist:a,album:(al||'').trim(),genre:(g||'').trim(),year:yy?yy[0]:''});
+  });
+  return items;
+}
+async function plSound(artist,title){
+  try{
+    const t=await lfm('track.getTopTags',{artist,track:title});let tags=arr(t&&t.toptags&&t.toptags.tag);
+    if(tags.length<8){const a=await lfm('artist.getTopTags',{artist});tags=[...tags,...arr(a&&a.toptags&&a.toptags.tag)]}
+    const out=[];for(const x of tags){const k=SOUND_MAP[String(x.name||'').toLowerCase().trim()];if(k&&!out.includes(k))out.push(k);if(out.length>=3)break}
+    return out.join(', ');
+  }catch(e){return ''}
+}
+let plCancel=false,plBusy=false;
+const plRefreshCount=()=>{if(plBusy)return;const n=parsePlaylist($('#pl-text').value,$('#pl-format').value).length;$('#pl-status').textContent=$('#pl-text').value.trim()?`${n}곡을 인식했어요.`:''};
+$('#import-pl').onclick=()=>{if(!plBusy){$('#pl-text').value='';$('#pl-status').textContent=''}openModal('pl-modal')};
+$('#pl-text').addEventListener('input',plRefreshCount);$('#pl-format').addEventListener('change',plRefreshCount);
+$('#pl-file').addEventListener('change',e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(f.size>5e6){toast('파일이 너무 커요 (5MB 초과).');return}
+  const r=new FileReader();
+  r.onload=()=>{
+    const b=new Uint8Array(r.result);let txt;
+    if(b[0]===0xFF&&b[1]===0xFE)txt=new TextDecoder('utf-16le').decode(b);
+    else if(b[0]===0xFE&&b[1]===0xFF)txt=new TextDecoder('utf-16be').decode(b);
+    else{try{txt=new TextDecoder('utf-8',{fatal:true}).decode(b)}catch{txt=new TextDecoder('euc-kr').decode(b)}}
+    $('#pl-text').value=txt;plRefreshCount();
+  };
+  r.onerror=()=>toast('파일을 읽지 못했어요.');
+  r.readAsArrayBuffer(f);
+});
+$('#pl-cancel').onclick=()=>{plCancel=true};
+$('#pl-run').onclick=async()=>{
+  if(plBusy)return;
+  const items=parsePlaylist($('#pl-text').value,$('#pl-format').value);
+  if(!items.length){toast('인식된 곡이 없어요. 형식을 확인해 주세요.');return}
+  const lookup=$('#pl-lookup').checked,wantSound=$('#pl-sound').checked,st=$('#pl-status');
+  const keys=new Set(songs.map(skey)),fresh=[],newAlbums=[],base=Date.now();
+  let dup=0,found=0,done=0;
+  plBusy=true;plCancel=false;$('#pl-run').disabled=true;$('#pl-cancel').style.display='';
+  for(let i=0;i<items.length&&!plCancel;i++){
+    const it=items[i];st.textContent=`처리 중 ${i+1} / ${items.length} · ${it.title}`;
+    if(keys.has(skey(it))){dup++;continue}
+    keys.add(skey(it));
+    const s={id:uid(),title:it.title,artist:it.artist,album:it.album,year:it.year,genre:it.genre,sound:'',cover:'',note:'',preview:'',fav:false,created:base-i};
+    if(lookup){
+      try{
+        const d=await new Promise(res=>searchTrack(it.title,it.artist,res));
+        const b=(d&&d.results||[]).find(x=>{if(!x.trackName)return false;const p=recNorm(x.artistName),q=recNorm(it.artist);return p&&q&&(p.includes(q)||q.includes(p))});
+        if(b){
+          found++;
+          s.cover=b._cover||largeArtwork(b.artworkUrl100||b.artworkUrl60)||'';
+          s.preview=b.previewUrl||'';
+          if(!s.album)s.album=b.collectionName||'';
+          if(!s.year)s.year=(b.releaseDate||'').slice(0,4);
+          if(!s.genre)s.genre=b.primaryGenreName||'';
+          if(b._albumId&&(!s.year||!s.genre)){
+            const ad=await new Promise(res=>jsonp('https://api.deezer.com/album/'+b._albumId+'?output=jsonp',res));
+            if(ad&&!ad.error){
+              if(!s.year)s.year=(ad.release_date||'').slice(0,4);
+              if(!s.genre)s.genre=(ad.genres&&ad.genres.data&&ad.genres.data[0]&&ad.genres.data[0].name)||'';
+            }
+          }
+        }
+      }catch(e){}
+      await new Promise(r=>setTimeout(r,120)); // API 호출 간격
+    }
+    if(wantSound)s.sound=await plSound(s.artist,s.title);
+    fresh.push(s);done++;
+    if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase())&&!newAlbums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))
+      newAlbums.push({id:uid(),title:s.album,artist:s.artist,year:s.year,genre:s.genre,cover:s.cover,note:'',created:base-i});
+  }
+  songs=[...fresh,...songs];albums=[...newAlbums,...albums];
+  save();render();
+  plBusy=false;$('#pl-run').disabled=false;$('#pl-cancel').style.display='none';
+  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${plCancel?' · 중단됨':''}`;
+  st.textContent=msg;toast(msg);
 };
 render();
 </script>
