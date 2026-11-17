@@ -106,7 +106,7 @@ body.has-mini .wrap{padding-bottom:160px}
 <section class="page" id="page-taste">
   <div class="head"><div><h1>취향</h1><p class="taste-text" id="taste-copy"></p></div></div>
   <div class="block"><div class="glance" id="glance"></div></div>
-  <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px"><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><p class="taste-text" style="margin:0 0 12px;font-size:13px">저장한 곡(3곡 이상)과 비슷한 곡을 찾아서, 내 사운드 태그와 잘 맞는 순서로 보여줘요. '곡 직접 고르기'로 원하는 곡 최대 3개만 기준으로 삼을 수도 있어요.</p><div class="api-results" id="rec-results" style="max-height:none"></div></div>
+  <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><p class="taste-text" style="margin:0 0 12px;font-size:13px">저장한 곡(3곡 이상)과 비슷한 곡을 찾아서, 내 사운드 태그와 잘 맞는 순서로 보여줘요. '곡 직접 고르기'로 원하는 곡 최대 3개만 기준으로 삼을 수도 있어요.</p><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
   <div class="block"><h2>장르 비율</h2><div id="genre-donut"></div></div>
   <div class="block"><h2>발매 연도</h2><div id="year-chart"></div></div>
   <div class="block"><h2>자주 듣는 아티스트</h2><div id="artist-bars"></div></div>
@@ -156,7 +156,7 @@ body.has-mini .wrap{padding-bottom:160px}
 </div><div class="modal-actions"><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
 
 <div class="modal-backdrop" id="album-modal"><div class="modal"><div class="modal-head"><h2 id="album-modal-title">앨범 추가</h2><button class="close" data-close>×</button></div><form id="album-form"><input type="hidden" id="album-id">
-<div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>검색해서 고르면 정보와 커버가 자동으로 입력돼요.</small></div>
+<div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>'선택'은 앨범 정보와 커버만 입력하고, '통째로 추가'는 수록곡 전체를 노래로 한 번에 추가해요.</small></div>
 <div class="api-search-line"><input id="api-album-query" placeholder="앨범명 또는 아티스트"><button type="button" class="btn small" id="api-album-search">검색</button></div>
 <div class="api-results" id="api-album-results"></div></div>
 <div class="form-grid">
@@ -442,7 +442,7 @@ function showApiResults(container,items,type){
     const year=(x.releaseDate||'').slice(0,4),genre=x.primaryGenreName||'';
     const preview=type==='song'&&x.previewUrl?`<audio controls preload="none" src="${esc(x.previewUrl)}"></audio>`:'';
     const thumb=(x.artworkUrl100||x.artworkUrl60||'');
-    return `<div class="api-result"><img src="${esc(thumb)}" alt="" onerror="this.style.visibility='hidden'"><div class="api-result-info"><strong>${esc(title||'제목 정보 없음')}</strong><span>${esc(artist)}${year?' · '+year:''}${genre?' · '+esc(genre):''}</span>${preview}</div><div class="api-result-actions"><button type="button" data-choose="${i}">선택</button></div></div>`;
+    return `<div class="api-result"><img src="${esc(thumb)}" alt="" onerror="this.style.visibility='hidden'"><div class="api-result-info"><strong>${esc(title||'제목 정보 없음')}</strong><span>${esc(artist)}${year?' · '+year:''}${genre?' · '+esc(genre):''}</span>${preview}</div><div class="api-result-actions"${type==='album'?' style="display:flex;flex-direction:column;gap:4px"':''}><button type="button" data-choose="${i}">선택</button>${type==='album'?`<button type="button" data-whole="${i}">통째로 추가</button>`:''}</div></div>`;
   }).join('');
   container.querySelectorAll('[data-choose]').forEach(btn=>btn.addEventListener('click',()=>{
     const x=items[Number(btn.dataset.choose)],coverUrl=x._cover||largeArtwork(x.artworkUrl100||x.artworkUrl60);
@@ -466,6 +466,7 @@ function showApiResults(container,items,type){
     toast('음악 정보를 입력했어요. 나머지 내용을 확인하고 저장해 주세요.');
     if(type==='song')autoTags(false);
   }));
+  container.querySelectorAll('[data-whole]').forEach(btn=>btn.addEventListener('click',()=>importWholeAlbum(items[Number(btn.dataset.whole)],btn)));
 }
 function runAppleSearch(type){
   const isSong=type==='song';
@@ -942,6 +943,57 @@ $('#pick-go').onclick=async()=>{
     else renderRecList(box,list,{cap:15,pageSize:5,onShow:c=>recSeen.add(skey(c))});
   }catch(e){box.innerHTML='<div class="api-hint">추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'}
 };
+// ===== 앨범 통째로 추가 =====
+async function importWholeAlbum(x,btn){
+  const old=btn.textContent;btn.disabled=true;btn.textContent='불러오는 중…';
+  const info={title:x.collectionName||'',artist:x.artistName||x.collectionArtistName||'',year:'',genre:'',cover:x._cover||largeArtwork(x.artworkUrl100||x.artworkUrl60)||''};
+  let tracks=[];
+  try{
+    if(x._albumId){
+      const d=await new Promise(res=>jsonp('https://api.deezer.com/album/'+x._albumId+'?output=jsonp',res));
+      if(d&&!d.error){
+        info.year=(d.release_date||'').slice(0,4);
+        info.genre=(d.genres&&d.genres.data&&d.genres.data[0]&&d.genres.data[0].name)||'';
+        if(d.artist&&d.artist.name)info.artist=d.artist.name;
+        let list=(d.tracks&&d.tracks.data)||[];
+        if(list.length<(d.nb_tracks||0)){
+          const t=await new Promise(res=>jsonp('https://api.deezer.com/album/'+x._albumId+'/tracks?limit=200&output=jsonp',res));
+          if(t&&Array.isArray(t.data)&&t.data.length>list.length)list=t.data;
+        }
+        tracks=list.map(t=>({title:t.title,artist:(t.artist&&t.artist.name)||info.artist,preview:t.preview||''}));
+      }
+    }else if(x.collectionId){
+      const d=await fetchApple('https://itunes.apple.com/lookup?'+new URLSearchParams({id:x.collectionId,entity:'song',country:'kr'}).toString());
+      const rs=(d&&d.results)||[],col=rs.find(r=>r.wrapperType==='collection');
+      if(col){info.year=(col.releaseDate||'').slice(0,4);info.genre=col.primaryGenreName||''}
+      tracks=rs.filter(r=>r.wrapperType==='track'&&r.trackName)
+        .sort((a,b)=>(a.discNumber||1)-(b.discNumber||1)||(a.trackNumber||0)-(b.trackNumber||0))
+        .map(r=>({title:r.trackName,artist:r.artistName||info.artist,preview:r.previewUrl||''}));
+    }
+  }catch(e){}
+  btn.disabled=false;btn.textContent=old;
+  if(!tracks.length){toast('수록곡을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');return}
+  const keys=new Set(songs.map(skey)),add=[];
+  tracks.forEach(t=>{if(t.title&&!keys.has(skey(t))){keys.add(skey(t));add.push(t)}});
+  if(!add.length){toast('이미 모두 등록된 앨범이에요.');return}
+  if(!confirm(`「${info.title}」 ${tracks.length}곡 중 ${add.length}곡을 추가할까요?`+(add.length<tracks.length?`\n(이미 있는 ${tracks.length-add.length}곡은 건너뜀)`:'')))return;
+  const base=Date.now();
+  const fresh=add.map((t,i)=>({id:uid(),title:t.title,artist:t.artist,album:info.title,year:info.year,genre:info.genre,sound:'',cover:info.cover,note:'',lyrics:'',preview:t.preview,fav:false,created:base-i}));
+  songs=[...fresh,...songs];
+  if(info.title&&!albums.some(a=>a.title.toLowerCase()===info.title.toLowerCase()&&a.artist.toLowerCase()===info.artist.toLowerCase()))
+    albums.unshift({id:uid(),title:info.title,artist:info.artist,year:info.year,genre:info.genre,cover:info.cover,note:'',created:base});
+  save();closeModals();render();
+  toast(`「${info.title}」 ${fresh.length}곡을 추가했어요.`);
+}
+// ===== 추천 접기 / 초기화 =====
+function recExpand(){$('#rec-body').style.display='';$('#rec-fold').textContent='접기'}
+$('#rec-fold').onclick=()=>{const b=$('#rec-body'),hide=b.style.display!=='none';b.style.display=hide?'none':'';$('#rec-fold').textContent=hide?'펼치기':'접기'};
+$('#rec-reset').onclick=()=>{
+  recAudio.pause();recPlaying=null;
+  const box=$('#rec-results');box._list=null;box.innerHTML='';
+  recSeen.clear();$('#rec-btn').textContent='추천 받기';recExpand();toast('추천 결과를 초기화했어요.');
+};
+$('#rec-btn').addEventListener('click',recExpand);$('#pick-go').addEventListener('click',recExpand);
 render();
 </script>
 </body>
