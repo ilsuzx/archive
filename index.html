@@ -195,10 +195,31 @@ let songs=read('aftertone_songs',[]),albums=read('aftertone_albums',[]),manualTa
 songs.forEach(s=>{s.fav=!!s.fav});
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2));
 const save=()=>{try{localStorage.setItem('aftertone_songs',JSON.stringify(songs));localStorage.setItem('aftertone_albums',JSON.stringify(albums));localStorage.setItem('aftertone_tags',JSON.stringify(manualTags));localStorage.setItem('aftertone_profile',JSON.stringify(profile));localStorage.setItem('aftertone_skipped',JSON.stringify(skipped))}catch(e){toast('저장 공간을 사용할 수 없어 변경 사항이 유지되지 않을 수 있어요.')}};
+
+// [추가] 상태 변경, 저장, 렌더링을 한 번에 처리하는 헬퍼 함수
+function updateState(updaterFn) {
+  updaterFn();
+  save();
+  render();
+}
 if(songs.some(s=>'lyrics' in s)){songs.forEach(s=>{delete s.lyrics});save()}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PH='<span class="placeholder">♫</span>';
-const cover=url=>url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.outerHTML='<span class=placeholder>♫</span>'">`:PH;
+// [추가] 안전한 URL인지 검증하는 함수
+const sanitizeUrl = url => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/')) {
+    return esc(trimmed);
+  }
+  return '';
+};
+
+// [수정] sanitizeUrl을 거치도록 변경된 cover 함수
+const cover = url => {
+  const safeUrl = sanitizeUrl(url);
+  return safeUrl ? `<img src="${safeUrl}" alt="" loading="lazy" onerror="this.outerHTML='<span class=placeholder>♫</span>'">` : PH;
+};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.remove('act');t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2400)}
 function go(page){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+page));document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));window.scrollTo(0,0);render()}
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
@@ -219,7 +240,11 @@ function editAlbum(id){const a=albums.find(x=>x.id===id);if(!a)return;$('#album-
 $('#song-form').onsubmit=e=>{e.preventDefault();const id=$('#song-id').value;
   if(!id&&songs.some(x=>skey(x)===($('#f-title').value.trim()+'|'+$('#f-artist').value.trim()).toLowerCase())&&!confirm('이미 등록된 곡이에요. 그래도 추가할까요?'))return;
   const s={id:id||uid(),title:$('#f-title').value.trim(),artist:$('#f-artist').value.trim(),album:$('#f-album').value.trim(),year:$('#f-year').value,genre:$('#f-genre').value.trim(),sound:$('#f-sound').value.trim(),cover:$('#f-cover').value.trim(),note:id?(songs.find(x=>x.id===id)?.note||''):'',preview:$('#f-preview').value,fav:id?!!songs.find(x=>x.id===id)?.fav:false,created:id?(songs.find(x=>x.id===id)?.created||Date.now()):Date.now()};
-  if(id)songs=songs.map(x=>x.id===id?s:x);else songs.unshift(s);
+  if (id) {
+  songs = songs.map(x => (x.id === id ? s : x));
+  } else {
+  songs.unshift(s);
+  }
   if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))albums.unshift({id:uid(),title:s.album,artist:s.artist,year:s.year,genre:s.genre,cover:s.cover,note:'',created:Date.now()});
   save();closeModals();render();toast(id?'곡 정보를 수정했어요.':'새로운 곡을 추가했어요.')};
 $('#album-form').onsubmit=e=>{e.preventDefault();const id=$('#album-id').value;
