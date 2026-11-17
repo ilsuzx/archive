@@ -996,7 +996,6 @@ $('#rec-reset').onclick=()=>{
 $('#rec-btn').addEventListener('click',recExpand);$('#pick-go').addEventListener('click',recExpand);
 render();
 </script>
-<!-- ▼ 이 <script> 블록 전체를 aftertone.html의 맨 아래, 기존 </script> 뒤 · </body> 앞에 붙여넣으세요 -->
 <script>
 // ===== AFTERTONE 추가 기능: 취향 지도 / 편식·빈틈 / 세부 보기 / 빈 정보 정리 / 다중 선택 편집 =====
 (()=>{
@@ -1004,7 +1003,7 @@ const st=document.createElement('style');
 st.textContent=`
 #page-taste .bar-item,#page-taste #sound-tags span,#page-taste .legend div,#page-taste .ycol,.x-chip{cursor:pointer}
 #page-taste .bar-item:hover .bar-label,#page-taste .legend div:hover{text-decoration:underline}
-.x-chip{border:0;background:var(--soft);border-radius:16px;padding:5px 12px;font-size:13px}.x-chip:hover{background:var(--fg);color:#fff}
+.x-chip{border:0;background:var(--soft);border-radius:16px;padding:5px 12px;font-size:13px}.x-chip:hover{background:var(--fg);color:#fff}.x-chip.x-static{cursor:default}.x-chip.x-static:hover{background:var(--soft);color:inherit}
 .x-map-main{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
 .x-row{font-size:13px;color:var(--muted);margin:6px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.x-row b{color:var(--fg);font-weight:600;min-width:46px}
 .x-sub{font-size:12px;color:var(--muted);margin:16px 0 8px}
@@ -1029,6 +1028,7 @@ document.body.insertAdjacentHTML('beforeend',`<div class="selbar" id="selbar"><s
 $('#song-list').closest('section').querySelector('.fbar').insertAdjacentHTML('beforeend',
  '<button type="button" class="btn secondary small" id="sel-toggle">선택</button><button type="button" class="btn secondary small" id="xc-open">빈 정보 정리</button>');
 document.querySelectorAll('[data-xclose]').forEach(b=>b.onclick=closeModals);
+['#xd-modal','#xc-modal'].forEach(s=>$(s).addEventListener('click',e=>{if(e.target===$(s))closeModals()}));
 
 // ---------- 공통 ----------
 const split=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -1040,7 +1040,7 @@ const LBL={genre:'장르',sound:'사운드',artist:'아티스트',year:'발매 �
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 // ---------- 취향 지도 + 편식/빈틈 ----------
-const GENRE_CATS=[['팝',/pop|팝/],['록',/rock|록/],['힙합/랩',/hip|rap|힙합|랩/],['R&B/소울',/r&b|rnb|soul|소울|funk/],['재즈',/jazz|재즈/],['클래식',/classic|클래식/],['일렉트로닉/댄스',/electro|dance|house|techno|edm|일렉|댄스/],['포크/어쿠스틱',/folk|acoustic|포크|어쿠스틱/],['메탈',/metal|메탈/],['레게',/reggae|레게/],['컨트리',/country|컨트리/],['블루스',/blues|블루스/],['라틴',/latin|라틴/],['OST/영화',/film|game|soundtrack|ost|영화/]];
+const GENRE_CATS=[['팝',/pop|팝/],['록',/rock|록/],['힙합/랩',/hip|rap|힙합|랩/],['R&B/소울',/r&b|rnb|soul|소울|funk/],['재즈',/jazz|재즈/],['클래식',/classic|클래식/],['일렉트로닉/댄스',/electro|dance|house|techno|edm|일렉|댄스/],['포크/어쿠스틱',/folk|acoustic|포크|어쿠스틱/],['메탈',/metal|메탈/],['레게',/reggae|레게/],['컨트리',/country|컨트리/],['블루스',/blues|블루스/],['라틴',/latin|라틴/],['OST/영화',/film|game|soundtrack|\bost\b|영화|게임/]];
 const CORE_SOUNDS=['기타','피아노','신스','드럼','베이스','스트링','어쿠스틱','일렉트로닉','브라스','오케스트라'];
 const level=(sh,hi,mid)=>sh>=hi?'쏠림 큼':sh>=mid?'다소 쏠림':'고른 편';
 const chip=(k,v,label,n)=>`<button type="button" class="x-chip" data-xk="${k}" data-xv="${esc(v)}">${esc(label)}${n!=null?' '+n:''}</button>`;
@@ -1069,9 +1069,9 @@ function renderMap(){
   const decGap=[];if(dTotal>=10)for(let d=1970;d<=Math.floor(new Date().getFullYear()/10)*10;d+=10){const c=dec[d]||0;if(c/dTotal<.03)decGap.push([d,c])}
   const sGap=sTotal?CORE_SOUNDS.filter(x=>!so.some(y=>y[0]===x)):[];
   h+='<div class="x-sub">거의 안 모은 영역</div>';
-  h+=g.length?`<div class="x-row"><b>장르</b>${noG.length?noG.map(n=>`<span class="x-chip" style="cursor:default">${esc(n)}</span>`).join(''):'<span>주요 장르를 대부분 골고루 담았어요</span>'}</div>`:'<div class="x-row"><b>장르</b><span>장르 정보가 없어요</span></div>';
-  h+=dTotal>=10?`<div class="x-row"><b>연대</b>${decGap.length?decGap.map(([d,c])=>`<span class="x-chip" style="cursor:default">${d}년대 ${c}곡</span>`).join(''):'<span>연대가 고르게 분포해요</span>'}</div>`:'<div class="x-row"><b>연대</b><span>연도가 있는 곡이 10곡 이상이면 분석해요</span></div>';
-  h+=sTotal?`<div class="x-row"><b>사운드</b>${sGap.length?sGap.map(n=>`<span class="x-chip" style="cursor:default">${esc(n)}</span>`).join(''):'<span>주요 사운드를 고르게 담았어요</span>'}</div>`:'<div class="x-row"><b>사운드</b><span>사운드를 채우면 빈틈도 보여요</span></div>';
+  h+=g.length?`<div class="x-row"><b>장르</b>${noG.length?noG.map(n=>`<span class="x-chip x-static">${esc(n)}</span>`).join(''):'<span>주요 장르를 대부분 골고루 담았어요</span>'}</div>`:'<div class="x-row"><b>장르</b><span>장르 정보가 없어요</span></div>';
+  h+=dTotal>=10?`<div class="x-row"><b>연대</b>${decGap.length?decGap.map(([d,c])=>`<span class="x-chip x-static">${d}년대 ${c}곡</span>`).join(''):'<span>연대가 고르게 분포해요</span>'}</div>`:'<div class="x-row"><b>연대</b><span>연도가 있는 곡이 10곡 이상이면 분석해요</span></div>';
+  h+=sTotal?`<div class="x-row"><b>사운드</b>${sGap.length?sGap.map(n=>`<span class="x-chip x-static">${esc(n)}</span>`).join(''):'<span>주요 사운드를 고르게 담았어요</span>'}</div>`:'<div class="x-row"><b>사운드</b><span>사운드를 채우면 빈틈도 보여요</span></div>';
   const mg=songs.filter(s=>!s.genre).length,my=songs.filter(s=>!validYear(s)).length,ma=songs.filter(s=>!s.album).length;
   if(mg||my||ma)h+=`<div class="x-sub">분석 정확도</div><div class="x-row"><span>장르 ${mg}곡 · 연도 ${my}곡 · 앨범 ${ma}곡 정보가 비어 있어요.</span><button type="button" class="x-chip" id="x-open-clean">정리하러 가기</button></div>`;
   bias.innerHTML=h;
@@ -1155,7 +1155,7 @@ function decorate(){
   });
 }
 function updateBar(){
-  $('#selbar').classList.toggle('on',selMode);
+  $('#selbar').classList.toggle('on',selMode&&$('#page-songs').classList.contains('active'));
   $('#sb-count').textContent=`${sel.size}곡 선택`;
   $('#sel-toggle').classList.toggle('fav-on',selMode);$('#sel-toggle').textContent=selMode?'선택 중':'선택';
 }
@@ -1224,7 +1224,6 @@ render=function(){_render();renderMap();$('#xc-open').textContent='빈 정보 �
 render();
 })();
 </script>
-<!-- ▼ 이 <script> 블록 전체를 aftertone.html 맨 아래, 앞서 붙여넣은 애드온 </script> 뒤 · </body> 앞에 붙여넣으세요 -->
 <script>
 // ===== 랜덤 뽑기 모션: 슬롯머신처럼 빠르게 넘기다 점점 느려지고, 결과가 톡 튀어나와요 =====
 (()=>{
@@ -1291,7 +1290,6 @@ btn.onclick=()=>{
 };
 })();
 </script>
-<!-- ▼ 이 <script> 블록 전체를 aftertone.html 맨 아래, 기존 애드온들의 </script> 뒤 · </body> 앞에 붙여넣으세요 -->
 <script>
 // ===== 노래 추가 창에서 앨범 통째로 추가 =====
 (()=>{
@@ -1323,6 +1321,187 @@ runAppleSearch=function(type){
   if(type==='song'&&songSearchScope==='album'){searchAlbumInSongModal();return}
   return _run(type);
 };
+})();
+</script>
+<script>
+// ===== 가사 자동 채우기: 곡 추가 시 가사를 같이 찾아 넣어요 =====
+(()=>{
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// 제목에 (feat. …), - Remastered 같은 꼬리표가 있어서 못 찾는 경우를 위해 한 번 더 시도
+async function findLyrics(t,a){
+  let l=await lrclib(t,a);if(l)return l;
+  const s=t.replace(/\(.*?\)|\[.*?\]/g,'').replace(/\s[-–—]\s.*$/,'').trim();
+  return s&&s!==t?await lrclib(s,a):'';
+}
+
+// 1) 노래 추가/수정 창: 검색 결과를 고르면(추천곡 추가 포함) 비어 있는 가사 칸을 자동으로 채움
+async function fillFormLyrics(){
+  const ta=$('#f-lyrics');if(ta.value.trim())return;
+  const t=$('#f-title').value.trim(),a=$('#f-artist').value.trim();if(!t||!a)return;
+  ta.placeholder='가사를 찾는 중…';
+  let l='';try{l=await findLyrics(t,a)}catch(e){}
+  ta.placeholder='';
+  // 찾는 동안 곡을 바꿨거나 직접 입력했다면 덮어쓰지 않음
+  if(l&&!ta.value.trim()&&$('#f-title').value.trim()===t&&$('#f-artist').value.trim()===a){ta.value=l;toast('가사를 자동으로 채웠어요.')}
+}
+const _autoTags=autoTags; // 곡 선택 시 항상 호출되는 함수에 연결
+autoTags=function(force){const r=_autoTags(force);if(!force)fillFormLyrics();return r};
+
+// 2) 앨범 통째로 / 플레이리스트 / 제외 목록에서 한꺼번에 추가된 곡: 백그라운드로 차례차례 찾음
+const queue=[];let running=false;
+async function runQueue(){
+  if(running)return;running=true;let n=0,got=0;
+  while(queue.length){
+    const id=queue.shift(),s=songs.find(x=>x.id===id);
+    if(!s||s.lyrics)continue;
+    n++;
+    try{const l=await findLyrics(s.title,s.artist);if(l){s.lyrics=l;got++}}catch(e){}
+    if(n%5===0)save();
+    await sleep(250);
+  }
+  running=false;
+  if(n){save();render();toast(`가사 자동 검색 완료: ${n}곡 중 ${got}곡을 찾았어요.`)}
+}
+function queueNew(before){
+  const fresh=songs.filter(s=>!before.has(s.id)&&!s.lyrics);
+  if(!fresh.length)return;
+  fresh.forEach(s=>queue.push(s.id));
+  toast(`새로 추가된 ${fresh.length}곡의 가사를 찾고 있어요…`);
+  runQueue();
+}
+const ids=()=>new Set(songs.map(s=>s.id));
+
+const _iwa=importWholeAlbum;
+importWholeAlbum=async function(x,btn){const b=ids();await _iwa(x,btn);queueNew(b)};
+
+const plRun=$('#pl-run'),_pl=plRun.onclick;
+plRun.onclick=async function(){const b=ids();await _pl.call(this);queueNew(b)};
+
+const _as=addSkipped;
+addSkipped=function(id){const b=ids();_as(id);queueNew(b)};
+const skAll=$('#skipped-all'),_sa=skAll.onclick;
+skAll.onclick=function(){const b=ids();_sa.call(this);queueNew(b)};
+})();
+</script>
+<script>
+// ===== 아티스트 탭: 비슷한 아티스트 추천 =====
+(()=>{
+// ---------- 탭/페이지 주입 ----------
+document.querySelector('[data-page="taste"]').insertAdjacentHTML('afterend','<button data-page="artists">아티스트</button>');
+document.querySelector('.wrap').insertAdjacentHTML('beforeend',`
+<section class="page" id="page-artists">
+  <div class="head"><div><h1>아티스트</h1><p class="taste-text">저장한 곡의 아티스트와 비슷한 아티스트를 찾아줘요. 이미 모아 둔 아티스트는 빼고 보여줘요.</p></div></div>
+  <div class="toolbar"><select id="art-seed"></select><button class="btn" id="art-go">추천 받기</button><button class="btn ghost small" id="art-reset">초기화</button></div>
+  <div class="api-results" id="art-results" style="max-height:none"></div>
+</section>`);
+const nav=document.querySelector('[data-page="artists"]');
+nav.addEventListener('click',()=>go('artists')); // 기존 탭 버튼은 로드 시점에만 연결돼서 직접 연결
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>aud.pause()));
+
+const aud=new Audio();aud.preload='none'; // 전역 play 리스너가 다른 오디오를 자동으로 멈춰줘요
+let playing=null;
+const syncBtns=()=>document.querySelectorAll('[data-aplay]').forEach(b=>{b.textContent=(b._c===playing&&!aud.paused)?'❚❚':'▶'});
+['play','pause','ended'].forEach(ev=>aud.addEventListener(ev,syncBtns));
+aud.addEventListener('error',()=>{if(playing){toast('미리듣기를 불러오지 못했어요.');syncBtns()}});
+
+// ---------- 내 라이브러리 아티스트 ----------
+const pieces=a=>String(a||'').split(',').map(x=>x.trim()).filter(Boolean);
+function libRank(){
+  const m={};
+  songs.forEach(s=>pieces(s.artist).forEach(n=>m[n]=(m[n]||0)+(s.fav?2:1)));
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+}
+function haveSet(){return [...new Set(songs.flatMap(s=>pieces(s.artist)).map(recNorm).filter(Boolean))]}
+const isHave=(k,have)=>have.some(h=>h===k||(h.length>=4&&k.length>=4&&(h.includes(k)||k.includes(h))));
+function fillSeed(){
+  const sel=$('#art-seed'),cur=sel.value;
+  const cnt={};songs.forEach(s=>pieces(s.artist).forEach(n=>cnt[n]=(cnt[n]||0)+1));
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,30);
+  sel.innerHTML='<option value="">내 취향 전체 (자동)</option>'+top.map(([n,c])=>`<option value="${esc(n)}" ${n===cur?'selected':''}>${esc(n)} 기준 (${c}곡)</option>`).join('');
+}
+const _render=render;render=function(){_render();fillSeed()};fillSeed();
+
+// ---------- 추천 계산 ----------
+const artSeen=new Set();
+async function recommendArtists(){
+  const have=haveSet(),pick=$('#art-seed').value;
+  let seeds;
+  if(pick)seeds=[pick];
+  else{
+    const top=libRank().slice(0,12).map(([n,w])=>[n,w*(0.5+Math.random())]).sort((a,b)=>b[1]-a[1]);
+    seeds=top.slice(0,6).map(x=>x[0]);
+  }
+  const cand=new Map();
+  await Promise.all(seeds.map(async sd=>{
+    try{
+      const d=await lfm('artist.getSimilar',{artist:sd,limit:'20'});
+      arr(d&&d.similarartists&&d.similarartists.artist).forEach(a=>{
+        const k=recNorm(a.name);if(!k||isHave(k,have))return;
+        const e=cand.get(k)||{key:k,name:a.name,score:0,seeds:[]};
+        e.score+=Number(a.match)||0.2;if(!e.seeds.includes(sd))e.seeds.push(sd);cand.set(k,e);
+      });
+    }catch(e){}
+  }));
+  const sorted=[...cand.values()].map(c=>({...c,j:c.score+Math.random()*0.25})).sort((a,b)=>b.j-a.j);
+  let pool=sorted.filter(c=>!artSeen.has(c.key));
+  if(pool.length<8){artSeen.clear();pool=sorted}
+  const list=pool.slice(0,12);
+  list.forEach(c=>artSeen.add(c.key));
+  return list;
+}
+
+// ---------- 카드 표시 (사진·대표곡은 Deezer에서 채움) ----------
+let token=0;
+function jp(url){return new Promise(res=>jsonp(url,res))}
+async function enrich(c,row,tk){
+  try{
+    const s=await jp('https://api.deezer.com/search/artist?q='+encodeURIComponent(c.name)+'&limit=3&output=jsonp');
+    if(tk!==token)return;
+    const n=recNorm(c.name),list=(s&&s.data)||[];
+    const hit=list.find(x=>recNorm(x.name)===n)||list.find(x=>{const m=recNorm(x.name);return m&&n&&(m.includes(n)||n.includes(m))});
+    if(!hit)return;
+    row.querySelector('.mini-cover').innerHTML=cover(hit.picture_medium||hit.picture);
+    const t=await jp('https://api.deezer.com/artist/'+hit.id+'/top?limit=10&output=jsonp');
+    if(tk!==token)return;
+    const tr=((t&&t.data)||[]).find(x=>x.preview);
+    if(!tr)return;
+    c.track={title:tr.title,preview:tr.preview};
+    row.querySelector('.art-track').textContent='대표곡 · '+tr.title;
+    row.querySelector('[data-aplay]').style.display='';row.querySelector('[data-aadd]').style.display='';
+  }catch(e){}
+}
+function renderArtists(list){
+  const box=$('#art-results');token++;const tk=token;
+  box.innerHTML=list.map((c,i)=>`<div class="api-result" data-i="${i}"><div class="mini-cover" style="width:52px;height:52px;border-radius:50%">${PH}</div><div class="api-result-info"><strong>${esc(c.name)}</strong><span style="white-space:normal">「${esc(c.seeds.slice(0,2).join('」, 「'))}」와(과) 비슷해요</span><span class="art-track"></span></div><button type="button" class="rec-play" data-aplay style="display:none" aria-label="대표곡 미리듣기">▶</button><div class="api-result-actions"><button type="button" data-aadd style="display:none">대표곡 추가</button></div></div>`).join('');
+  box.querySelectorAll('.api-result').forEach(row=>{
+    const c=list[Number(row.dataset.i)];
+    const pb=row.querySelector('[data-aplay]');pb._c=c;
+    pb.onclick=()=>{
+      if(!c.track)return;
+      if(playing===c&&!aud.paused){aud.pause();return}
+      playing=c;aud.src=c.track.preview;aud.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));
+    };
+    row.querySelector('[data-aadd]').onclick=()=>{if(c.track)addRecommended({title:c.track.title,artist:c.name})};
+  });
+  // 4개씩 병렬로 사진·대표곡 확인
+  (async()=>{const rows=[...box.querySelectorAll('.api-result')];
+    for(let k=0;k<rows.length;k+=4)await Promise.all(rows.slice(k,k+4).map(r=>enrich(list[Number(r.dataset.i)],r,tk)))})();
+}
+
+// ---------- 버튼 ----------
+$('#art-go').onclick=async()=>{
+  const box=$('#art-results'),btn=$('#art-go');
+  if(songs.length<3){toast('추천을 받으려면 곡을 3곡 이상 저장해 주세요.');return}
+  btn.disabled=true;btn.textContent='찾는 중…';aud.pause();
+  box.innerHTML='<div class="api-status">비슷한 아티스트를 찾고 있어요. 10초 정도 걸릴 수 있어요…</div>';
+  try{
+    const list=await recommendArtists();
+    if(!list.length)box.innerHTML='<div class="api-hint">추천할 아티스트를 찾지 못했어요. 다른 기준 아티스트를 고르거나 잠시 후 다시 시도해 주세요.</div>';
+    else renderArtists(list);
+  }catch(e){box.innerHTML='<div class="api-hint">추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'}
+  btn.disabled=false;btn.textContent='다시 추천 받기';
+};
+$('#art-reset').onclick=()=>{aud.pause();playing=null;token++;artSeen.clear();$('#art-results').innerHTML='';$('#art-go').textContent='추천 받기';toast('추천 결과를 초기화했어요.')};
 })();
 </script>
 </body>
