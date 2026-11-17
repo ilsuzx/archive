@@ -1291,5 +1291,39 @@ btn.onclick=()=>{
 };
 })();
 </script>
+<!-- ▼ 이 <script> 블록 전체를 aftertone.html 맨 아래, 기존 애드온들의 </script> 뒤 · </body> 앞에 붙여넣으세요 -->
+<script>
+// ===== 노래 추가 창에서 앨범 통째로 추가 =====
+(()=>{
+const seg=$('#api-song-scope');
+seg.insertAdjacentHTML('beforeend','<button type="button" data-sscope="album">앨범 통째로</button>');
+const albumBtn=seg.querySelector('[data-sscope="album"]');
+const HINT='앨범을 검색한 뒤 \'통째로 추가\'를 누르면 수록곡 전체가 한 번에 추가돼요. 이미 있는 곡은 건너뛰어요.';
+albumBtn.addEventListener('click',()=>{
+  setSongScope('album');
+  $('#api-song-query').placeholder='앨범명 또는 아티스트로 검색';
+  $('#api-song-results').innerHTML=`<div class="api-hint">${HINT}</div>`;
+});
+
+function searchAlbumInSongModal(){
+  const query=$('#api-song-query').value.trim(),box=$('#api-song-results'),btn=$('#api-song-search');
+  if(!query){toast('앨범명이나 아티스트명을 입력해 주세요.');return}
+  btn.disabled=true;btn.textContent='검색 중…';
+  box.innerHTML='<div class="api-status">앨범을 검색하고 있어요…</div>';
+  searchMusic(query,'album',data=>{
+    btn.disabled=false;btn.textContent='검색';
+    if(data.error){box.innerHTML='<div class="api-hint">음악 검색 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.</div>';return}
+    showApiResults(box,data.results||[],'album');
+    box.querySelectorAll('[data-choose]').forEach(b=>b.remove()); // 이 창에서는 '통째로 추가'만 사용
+  });
+}
+// 기존 검색 버튼/Enter가 호출하는 함수를 감싸서, 앨범 모드일 때만 앨범 검색으로 보냄
+const _run=runAppleSearch;
+runAppleSearch=function(type){
+  if(type==='song'&&songSearchScope==='album'){searchAlbumInSongModal();return}
+  return _run(type);
+};
+})();
+</script>
 </body>
 </html>
