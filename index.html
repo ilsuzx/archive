@@ -68,7 +68,146 @@ body.has-mini .wrap{padding-bottom:160px}
 .rec-play{border:1px solid #ddd;background:#fff;color:var(--fg);border-radius:50%;width:30px;height:30px;font-size:11px;flex-shrink:0;padding:0}.rec-play:hover{border-color:var(--fg)}
 .intro-src{font-size:12px;color:var(--muted);margin-top:2px}.intro-src a{color:inherit}
 </style>
+<!-- AFTERTONE 갤러리 테마: </head> 바로 앞에 통째로 붙여 넣으세요. 지우면 원래대로 돌아가요. -->
+<style id="aftertone-theme">
+:root{--bg:#fafaf9;--fg:#0b0b0b;--muted:#8a8a86;--line:#ececea;--soft:#f1f1ef;--ease:cubic-bezier(.2,.7,.2,1)}
+::selection{background:#111;color:#fff}
+body{-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+.wrap{max-width:1180px;padding:0 32px 140px}
+header{position:sticky;top:0;z-index:12;margin:0 -32px 56px;padding:16px 32px;background:rgba(250,250,249,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.brand{font-size:13px;font-weight:800;letter-spacing:.32em}
+.nav{gap:2px}
+.nav button{position:relative;border-radius:0;background:none;padding:8px 12px;font-size:13px;transition:color .2s}
+.nav button.active{background:none;color:var(--fg);font-weight:600}
+.nav button::after{content:"";position:absolute;left:12px;right:12px;bottom:2px;height:1.5px;background:var(--fg);transform:scaleX(0);transition:transform .35s var(--ease)}
+.nav button.active::after,.nav button:hover::after{transform:scaleX(1)}
+.page.active{animation:pg .55s var(--ease)}
+@keyframes pg{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+h1{font-size:40px;font-weight:800;letter-spacing:-.05em;line-height:1.1}
+#page-home h1{font-size:clamp(36px,6.5vw,68px);line-height:1.04;max-width:12em}
+h2{font-size:12px;font-weight:600;letter-spacing:.12em;color:var(--muted)}
+.modal-head h2,.random-stage h2,.pick h3{color:var(--fg);letter-spacing:-.03em}
+.modal-head h2{font-size:19px}
+.head{margin-bottom:30px}
+.section{margin:72px 0 22px}
+.summary{margin-top:28px;gap:36px}.summary b{font-size:30px;font-weight:700;letter-spacing:-.04em}
+.btn{border-radius:999px;padding:9px 18px;font-weight:600;transition:transform .2s var(--ease),opacity .2s}
+.btn:active{transform:scale(.97)}
+.btn.secondary{border-color:#d9d9d5}
+.btn.small{padding:7px 14px}
+input,select,textarea{border-color:var(--line);border-radius:10px;background:#fff;transition:border-color .2s,box-shadow .2s}
+input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px #00000010}
+.seg{border-radius:999px;padding:3px}.seg button{border-radius:999px;padding:5px 13px}
+/* 갤러리 그리드 */
+.grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:40px 26px}
+.album-card .cover{border-radius:4px;background:linear-gradient(135deg,#efefed,#e4e4e1);box-shadow:0 1px 2px #0000000d,0 14px 30px -16px #00000055;transition:transform .55s var(--ease),box-shadow .55s var(--ease)}
+.album-card:hover .cover{transform:translateY(-7px);box-shadow:0 2px 4px #0000000d,0 30px 50px -20px #0000007a}
+.cover img{transition:transform 1s var(--ease)}
+.album-card:hover .cover img{transform:scale(1.05)}
+.album-card h3{margin:16px 0 3px;font-size:15px;font-weight:700;letter-spacing:-.025em}
+.album-card p{font-size:13px}
+.placeholder{font-size:34px;color:#c9c9c5}
+/* 노래 목록: 큰 커버 */
+.song-list{border-top:0}
+.song-row{gap:18px;padding:14px 8px;margin:0 -8px;border-bottom:1px solid var(--line);border-radius:8px;transition:background .2s}
+.song-row:hover{background:var(--soft)}
+.mini-cover{width:68px;height:68px;border-radius:4px;box-shadow:0 6px 16px -8px #00000055}
+.song-meta strong{font-size:15px;letter-spacing:-.02em}
+.row-actions .icon-btn{opacity:.4;transition:opacity .2s,background .2s}
+.song-row:hover .icon-btn,.row-actions .icon-btn.fav.on{opacity:1}
+/* 오늘의 곡 / 랜덤 */
+.pick{gap:22px;padding:20px;background:var(--soft);border-radius:8px}
+.random-art{border-radius:4px;box-shadow:0 14px 30px -16px #00000066}
+.pick .random-art{width:128px;height:128px}
+.pick h3{font-size:22px;font-weight:700}
+.random-stage{padding:20px 0 40px}
+.random-stage .random-art{width:min(380px,82vw);height:min(380px,82vw);margin:24px auto;border-radius:6px;box-shadow:0 40px 70px -30px #00000088}
+.random-stage h2{font-size:32px;font-weight:800;letter-spacing:-.04em}
+/* 취향 */
+.glance div b{font-size:36px;font-weight:700}
+.bar{height:3px}
+.tag-cloud span{background:none;border:1px solid #dcdcd8}
+.ycol i{border-radius:2px 2px 0 0}
+/* 모달 · 플레이어 */
+.modal-backdrop{background:#0000005e;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.modal{border-radius:20px;padding:28px;box-shadow:0 50px 100px -30px #000a}
+.api-result{border-radius:10px}.api-result img{width:56px;height:56px}
+.mini{background:rgba(255,255,255,.86);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.empty{border-color:#dcdcd8;border-radius:12px}
+@media(max-width:700px){
+.wrap{padding:0 18px 140px}
+header{margin:0 -18px 36px;padding:14px 18px}
+h1{font-size:30px}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 14px}
+.mini-cover{width:56px;height:56px}
+.pick .random-art{width:96px;height:96px}
+}
+@media(prefers-reduced-motion:reduce){.page.active{animation:none}.album-card .cover,.cover img{transition:none}}
+</style>
 </head>
+<!-- AFTERTONE 떠다니는 커버: </body> 바로 앞(마지막 </script> 뒤)에 통째로 붙여 넣으세요. 지우면 원래대로 돌아가요. -->
+<style id="aftertone-floating">
+body{overflow-x:clip}
+.brand,.nav button,h2,.count,.summary,.fl-lab{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.fl-stage{position:relative;height:clamp(460px,78vh,780px);width:100vw;margin:12px 0 0 calc(50% - 50vw);overflow:hidden;--mx:0;--my:0}
+.fl-word{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:clamp(56px,15.5vw,230px);letter-spacing:-.07em;line-height:1;color:#0b0b0b;pointer-events:none;user-select:none}
+.fl-i{position:absolute;cursor:pointer;transform:translate3d(calc(-50% + var(--mx)*var(--z)*1px),calc(-50% + var(--my)*var(--z)*1px),0);transition:transform .8s cubic-bezier(.2,.7,.2,1)}
+.fl-in{position:relative;width:100%;height:100%;border-radius:3px;overflow:hidden;background:#e6e6e3;box-shadow:0 18px 40px -18px #000000a6;animation:flt var(--d) ease-in-out var(--dl) infinite alternate;transition:scale .5s cubic-bezier(.2,.7,.2,1),box-shadow .5s}
+.fl-in img{width:100%;height:100%;object-fit:cover;display:block}
+.fl-in .placeholder{display:grid;place-items:center;height:100%}
+.fl-i:hover{z-index:99!important}
+.fl-i:hover .fl-in{animation-play-state:paused;scale:1.1;box-shadow:0 30px 60px -20px #000000cc}
+.fl-lab{position:absolute;left:0;right:0;bottom:0;padding:6px 9px;background:#000;color:#fff;font-size:11px;line-height:1.35;opacity:0;transform:translateY(6px);transition:.3s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.fl-i:hover .fl-lab{opacity:1;transform:none}
+@keyframes flt{from{transform:translate(0,0) rotate(var(--r))}to{transform:translate(var(--fx),var(--fy)) rotate(calc(var(--r) + var(--fr)))}}
+@media(max-width:700px){.fl-stage{height:440px}}
+@media(prefers-reduced-motion:reduce){.fl-in{animation:none;transform:rotate(var(--r))}.fl-i{transition:none}}
+</style>
+<script>
+(()=>{
+const h1=document.querySelector('#page-home h1');if(!h1)return;
+h1.insertAdjacentHTML('afterend','<div class="fl-stage" id="fl-stage" style="display:none"><div class="fl-word">AFTERTONE</div></div>');
+const stage=document.getElementById('fl-stage');
+const rnd=new Map(),lc=s=>String(s||'').toLowerCase();
+let sig='';
+const hash=s=>{let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0};
+const rng=seed=>()=>{seed=(seed+0x6D2B79F5)>>>0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+function build(){
+  const mobile=innerWidth<700,cols=mobile?3:5,cells=cols*3,rows=3,scale=mobile?.6:1;
+  const covers=new Set(albums.filter(a=>a.cover).map(a=>a.cover));
+  const cand=[
+    ...albums.filter(a=>a.cover).map(a=>({k:'a',id:a.id,cover:a.cover,t:a.title,a:a.artist})),
+    ...songs.filter(s=>s.cover&&!covers.has(s.cover)).map(s=>({k:'s',id:s.id,cover:s.cover,t:s.title,a:s.artist,p:!!s.preview}))
+  ];
+  cand.forEach(c=>{if(!rnd.has(c.id))rnd.set(c.id,Math.random())});
+  const seen=new Set(),list=cand.sort((x,y)=>rnd.get(x.id)-rnd.get(y.id)).filter(c=>!seen.has(c.cover)&&seen.add(c.cover)).slice(0,cells);
+  const next=cols+':'+list.map(c=>c.id).join(',');
+  if(next===sig)return;sig=next;
+  stage.querySelectorAll('.fl-i').forEach(e=>e.remove());
+  stage.style.display=list.length?'':'none';
+  list.forEach((c,j)=>{
+    const r=rng(hash(c.id)),cell=(j*7+3)%cells,col=cell%cols,row=Math.floor(cell/cols);
+    const x=(col+.22+.56*r())/cols*100,y=(row+.2+.6*r())/rows*100;
+    const size=(115+r()*95)*scale,ar=r(),ratio=ar<.22?'4/5':ar>.86?'5/4':'1/1';
+    const e=document.createElement('div');e.className='fl-i';e.dataset.k=c.k;e.dataset.id=c.id;
+    e.style.cssText=`left:${x}%;top:${y}%;width:${size}px;aspect-ratio:${ratio};z-index:${j+1};--z:${Math.round(8+size/7)};--r:${(r()*14-7).toFixed(1)}deg;--fx:${(r()*30-15).toFixed(0)}px;--fy:${(r()*34-17).toFixed(0)}px;--fr:${(r()*6-3).toFixed(1)}deg;--d:${(5+r()*5).toFixed(1)}s;--dl:-${(r()*6).toFixed(1)}s`;
+    e.innerHTML=`<div class="fl-in">${cover(c.cover)}<span class="fl-lab">${esc(c.t)} — ${esc(c.a)}</span></div>`;
+    stage.appendChild(e);
+  });
+}
+stage.addEventListener('click',e=>{
+  const i=e.target.closest('.fl-i');if(!i)return;
+  const id=i.dataset.id;
+  if(i.dataset.k==='a')editAlbum(id);
+  else{const s=songs.find(x=>x.id===id);s&&s.preview?playSong(id):editSong(id)}
+});
+stage.addEventListener('mousemove',e=>{const r=stage.getBoundingClientRect();stage.style.setProperty('--mx',(-((e.clientX-r.left)/r.width-.5)*2).toFixed(3));stage.style.setProperty('--my',(-((e.clientY-r.top)/r.height-.5)*2).toFixed(3))});
+stage.addEventListener('mouseleave',()=>{stage.style.setProperty('--mx',0);stage.style.setProperty('--my',0)});
+let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(build,250)});
+const _r=render;render=function(){_r();build()};
+build();
+})();
+</script>
 <body>
 <div class="wrap">
 <header>
