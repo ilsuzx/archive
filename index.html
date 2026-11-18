@@ -750,9 +750,11 @@ function addRecommended(item){
     else autoTags(false);
   });
 }
+// 최근에 추가한 곡일수록 가중치가 커져요 (최대 2배, 오래된 곡은 0.5배까지 서서히 감소)
+const recW=s=>{const age=Math.max(0,(Date.now()-(Number(s.created)||0))/864e5);return 0.5+1.5*Math.exp(-age/90)};
 function profileVec(list){
   const v={};
-  (list||songs).forEach(s=>{const w=s.fav?2:1;[s.sound].forEach(f=>(f||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>v[t]=(v[t]||0)+w))});
+  (list||songs).forEach(s=>{const w=(s.fav?2:1)*(list?1:recW(s));[s.sound].forEach(f=>(f||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>v[t]=(v[t]||0)+w))});
   return v;
 }
 async function candTags(artist,track){
@@ -767,7 +769,8 @@ const recSeen=new Set(); // 이번 접속 중 이미 보여준 추천곡
 async function recommend(custom){
   const lib=new Set(songs.map(skey));
   const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
-  const seeds=custom||[...shuffle(songs.filter(s=>s.fav)),...shuffle(songs.filter(s=>!s.fav))].slice(0,8);
+  const wshuffle=a=>a.map(x=>[Math.pow(Math.random(),1/recW(x)),x]).sort((p,q)=>q[0]-p[0]).map(x=>x[1]);
+  const seeds=custom||[...wshuffle(songs.filter(s=>s.fav)),...wshuffle(songs.filter(s=>!s.fav))].slice(0,8);
   const cand=new Map();
   await Promise.all(seeds.map(async sd=>{
     const list=await getSimilar(sd.artist,sd.title);
