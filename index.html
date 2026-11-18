@@ -133,6 +133,7 @@ body.has-mini .wrap{padding-bottom:160px}
 <section class="page about" id="page-about">
   <div class="head"><h1>소개</h1><button class="btn secondary" id="edit-profile">소개 수정</button></div>
   <p id="about-text"></p>
+  <div class="backup" id="lfm-box"><h2>Last.fm 연결</h2><p>태그 · 비슷한 곡 · 분위기 · 아티스트 소개 일부는 Last.fm을 써요. 무료 API 키를 한 번 입력하면 이 브라우저에만 저장되고, 파일이나 백업에는 들어가지 않아요. 키는 <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">여기</a>에서 무료로 받을 수 있어요('API key'만 필요해요).</p><div class="toolbar"><input class="search" id="lfm-key" type="password" autocomplete="off" spellcheck="false" placeholder="API key 붙여넣기 (32자리)"><button class="btn" id="lfm-save">저장</button><button class="btn secondary" id="lfm-test">연결 테스트</button><button class="btn ghost small" id="lfm-clear">지우기</button></div><p class="taste-text" id="lfm-status" style="font-size:13px;margin-top:8px"></p></div>
   <div class="backup"><h2>백업과 복원</h2><p>데이터는 이 브라우저에만 저장돼요. 파일로 내보내 두면 기기를 바꾸거나 캐시를 지워도 복원할 수 있어요.</p><div class="backup-actions"><button class="btn" id="export-btn">내보내기</button><button class="btn secondary" id="import-merge">가져오기 (합치기)</button><button class="btn secondary" id="import-replace">가져오기 (덮어쓰기)</button></div><input type="file" id="import-file" accept=".json,application/json" style="display:none"></div>
 </section>
 </div>
@@ -501,15 +502,19 @@ $('#clean-albums').onclick=()=>{
   const backup=albums.slice();albums=albums.filter(a=>!dead.includes(a));save();render();
   undoToast(`빈 앨범 ${dead.length}개를 정리했어요.`,()=>{albums=backup;save();render()})};
 // ===== 태그로 사운드 자동 채우기 =====
-const MUSIC_KEY='660e25c207739006dd8b6d13bff8a539';
+let MUSIC_KEY='';try{MUSIC_KEY=String(localStorage.getItem('aftertone_lfmkey')||'').trim()}catch(e){}
+let lfmWarnAt=0;const lfmWarn=m=>{if(Date.now()-lfmWarnAt>20000){lfmWarnAt=Date.now();toast(m)}};
 const SOUND_MAP={guitar:'기타','electric guitar':'일렉트릭 기타','acoustic guitar':'어쿠스틱 기타',acoustic:'어쿠스틱',piano:'피아노',synth:'신스',synthesizer:'신스',synthpop:'신스',electronic:'일렉트로닉',drums:'드럼',bass:'베이스',strings:'스트링',violin:'바이올린',orchestral:'오케스트라',orchestra:'오케스트라','lo-fi':'로파이',lofi:'로파이',ambient:'앰비언트',band:'밴드',brass:'브라스',saxophone:'색소폰',vocal:'보컬','female vocalists':'여성 보컬','male vocalists':'남성 보컬','female vocalist':'여성 보컬','male vocalist':'남성 보컬',beats:'비트',instrumental:'인스트루멘탈',trumpet:'트럼펫',cello:'첼로',flute:'플루트',keyboard:'키보드',percussion:'퍼커션'};
 async function lfm(method,params){
+  if(!MUSIC_KEY){lfmWarn('Last.fm 키가 필요해요. 소개 탭에서 한 번만 입력해 주세요.');return {}}
   const ep='https://ws.audioscrobbler.com/2.0/?'+new URLSearchParams({method,api_key:MUSIC_KEY,format:'json',autocorrect:'1',...params}).toString();
   try{
     const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
     const r=await fetch(ep,{signal:c.signal});clearTimeout(t);
     if(!r.ok)throw new Error('HTTP');
-    return await r.json();
+    const j=await r.json();
+    if(j&&(j.error===10||j.error===26))lfmWarn('Last.fm 키가 올바르지 않아요. 소개 탭에서 확인해 주세요.');
+    return j;
   }catch(e){return new Promise(res=>jsonp(ep,res))}
 }
 async function autoTags(force){
@@ -1743,6 +1748,42 @@ async function showArtistInfo(){
   box.innerHTML=`<div style="display:flex;gap:16px;align-items:flex-start">${img?`<img src="${esc(img)}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;flex:none" onerror="this.remove()">`:''}<div style="min-width:0"><strong style="font-size:17px">${esc(name)}</strong>${meta.length?`<div class="taste-text" style="font-size:13px;margin:4px 0">${meta.map(esc).join(' · ')}</div>`:''}${src?`<p class="taste-text" style="font-size:14px;line-height:1.6;margin:6px 0">${esc(src.bio)}</p>`:''}${cr}</div></div>`;
 }
 $('#art-seed').addEventListener('change',showArtistInfo);
+})();
+</script>
+<script>
+// ===== Last.fm 키 설정: 키는 코드에 두지 않고 이 브라우저(localStorage)에만 저장해요 =====
+(()=>{
+const mask=k=>k?k.slice(0,4)+'••••••••••••••••••••••••'+k.slice(-4):'';
+function draw(){$('#lfm-status').textContent=MUSIC_KEY?'저장된 키: '+mask(MUSIC_KEY):'아직 키가 없어요. 키를 넣기 전에는 Last.fm 기능(태그·분위기·비슷한 곡)이 동작하지 않아요.';$('#lfm-clear').style.display=MUSIC_KEY?'':'none';$('#lfm-test').disabled=!MUSIC_KEY}
+$('#lfm-save').onclick=()=>{
+  const v=$('#lfm-key').value.trim();
+  if(!/^[0-9a-f]{32}$/i.test(v)){toast('키 형식이 올바르지 않아요. 32자리 영문·숫자예요.');return}
+  MUSIC_KEY=v;lfmWarnAt=0;
+  let saved=true;try{localStorage.setItem('aftertone_lfmkey',v)}catch(e){saved=false}
+  $('#lfm-key').value='';draw();
+  toast(saved?'키를 저장했어요. 연결 테스트로 확인해 보세요.':'이 브라우저에서는 저장이 안 돼요. 창을 닫기 전까지만 쓸 수 있어요.');
+};
+$('#lfm-test').onclick=async()=>{
+  const b=$('#lfm-test');b.disabled=true;b.textContent='확인 중…';
+  const d=await lfm('chart.getTopArtists',{limit:'1'});
+  b.disabled=false;b.textContent='연결 테스트';
+  if(d&&d.error)$('#lfm-status').textContent='키가 올바르지 않아요 (Last.fm 응답: '+d.error+'). 다시 확인해 주세요.';
+  else if(d&&d.artists)$('#lfm-status').textContent='연결됐어요. 저장된 키: '+mask(MUSIC_KEY);
+  else $('#lfm-status').textContent='Last.fm에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
+};
+$('#lfm-clear').onclick=()=>{
+  if(!confirm('저장된 Last.fm 키를 지울까요?'))return;
+  MUSIC_KEY='';try{localStorage.removeItem('aftertone_lfmkey')}catch(e){}
+  draw();toast('키를 지웠어요.');
+};
+$('#lfm-key').addEventListener('keydown',e=>{if(e.key==='Enter')$('#lfm-save').click()});
+// 분위기 채우기는 Last.fm 키가 있어야 해요
+const _run=$('#fl-run').onclick;
+$('#fl-run').onclick=function(){
+  if($('#fl-mood').checked&&!MUSIC_KEY){toast('분위기는 Last.fm 키가 필요해요. 소개 탭에서 키를 입력하거나 이 항목을 꺼 주세요.');return}
+  return _run.apply(this,arguments);
+};
+draw();
 })();
 </script>
 </body>
