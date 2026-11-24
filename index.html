@@ -116,19 +116,6 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>같은 스타일로 만들기</h2>
-      <div class="btns">
-        <button id="playChords" type="button">코드 진행 재생</button>
-        <button id="downloadMidi" type="button">MIDI 저장</button>
-      </div>
-      <div class="muted" id="progLabel" style="margin-top:8px"></div>
-      <div class="head" style="margin:12px 0 0">
-        <span class="muted">음악 생성 툴용 프롬프트</span>
-        <button class="small" id="copyPrompt" type="button">복사</button>
-      </div>
-      <div class="prompt" id="prompt">—</div>
-    </section>
   </div>
 
   <div class="col">
@@ -163,12 +150,11 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const MAJOR = [0,2,4,5,7,9,11], MINOR = [0,2,3,5,7,8,10];
 const KS_MAJ = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
 const KS_MIN = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
 
 let cur = null, curKey = '', tapTimes = [];
-let audioCtx = null, analyser = null, connected = false, blobUrl = null, chordNodes = [];
+let audioCtx = null, analyser = null, connected = false, blobUrl = null;
 
 const setStatus = (m) => { $('statusText').textContent = m; };
 const keyName = (k) => k ? `${NOTES[k.pc]} ${k.minor ? 'Minor' : 'Major'}` : '—';
@@ -183,18 +169,6 @@ function compat(k) {
   const w = (x) => ((x + 11) % 12) + 1;
   return [`${n}${o}`, `${w(n - 1)}${L}`, `${w(n + 1)}${L}`].join(', ');
 }
-function chordsFor(k) {
-  const scale = k.minor ? MINOR : MAJOR;
-  const root = 48 + k.pc;
-  const note = (i) => root + scale[i % 7] + 12 * Math.floor(i / 7);
-  const prog = k.minor ? [0, 5, 2, 6] : [0, 4, 5, 3];
-  return prog.map((d) => [note(d), note(d + 2), note(d + 4)]);
-}
-function progLabel(k) {
-  const m = k.minor ? ['i','VI','III','VII'] : ['I','V','vi','IV'];
-  return m.join(' – ');
-}
-
 // ---------- 오디오 분석 (BPM / 키) ----------
 function fft(re, im) {
   const n = re.length;
@@ -422,7 +396,6 @@ function render(d, buf) {
 
   renderTempoKey();
   $('measureNote').textContent = d.measured ? `· 미리듣기 30초에서 측정${d.engine ? ' (' + d.engine + ')' : ''}` : '· 측정하지 못했습니다';
-  $('prompt').textContent = d.ai?.stylePrompt || [d.bpm && `${d.bpm} BPM`, d.key && keyName(d.key), t.primaryGenreName].filter(Boolean).join(', ');
   $('chips').innerHTML = (d.ai?.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
   $('summary').textContent = d.ai?.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
   $('lyrics').textContent = d.lyrics;
@@ -434,7 +407,6 @@ function renderTempoKey() {
   $('key').textContent = keyName(cur.key);
   $('camelot').textContent = cur.key ? `Camelot ${camelot(cur.key)}` : '';
   $('compat').textContent = cur.key ? `어울리는 키 ${compat(cur.key)}` : '';
-  $('progLabel').textContent = cur.key ? `코드 진행 ${progLabel(cur.key)}` : '키를 측정하지 못해 코드 진행을 만들 수 없습니다.';
 }
 
 function renderDna() {
@@ -493,64 +465,7 @@ function setupVisualizer() {
   })();
 }
 
-// ---------- 코드 재생 / MIDI ----------
-function stopChords() { chordNodes.forEach((o) => { try { o.stop(); } catch {} }); chordNodes = []; }
-
-$('playChords').onclick = () => {
-  if (!cur?.key) return;
-  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  stopChords();
-  const dur = (60 / (cur.bpm || 120)) * 2;
-  chordsFor(cur.key).forEach((notes, idx) => {
-    const t0 = audioCtx.currentTime + 0.05 + idx * dur;
-    notes.forEach((m) => {
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.type = 'triangle';
-      o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
-      g.gain.setValueAtTime(0.001, t0);
-      g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.04);
-      g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur - 0.03);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(t0); o.stop(t0 + dur);
-      chordNodes.push(o);
-    });
-  });
-};
-
-const vlq = (v) => { const b = [v & 0x7f]; while ((v >>= 7) > 0) b.unshift((v & 0x7f) | 0x80); return b; };
-
-$('downloadMidi').onclick = () => {
-  if (!cur?.key) return;
-  const ppq = 480, ticks = ppq * 2, ev = [];
-  chordsFor(cur.key).forEach((notes, i) => notes.forEach((n) => {
-    ev.push({ t: i * ticks, on: 1, n }, { t: (i + 1) * ticks - 20, on: 0, n });
-  }));
-  ev.sort((a, b) => a.t - b.t || a.on - b.on);
-
-  const usec = Math.round(60000000 / (cur.bpm || 120));
-  const data = [0x00, 0xff, 0x51, 0x03, (usec >> 16) & 255, (usec >> 8) & 255, usec & 255];
-  let last = 0;
-  ev.forEach((e) => {
-    data.push(...vlq(e.t - last), e.on ? 0x90 : 0x80, e.n & 0x7f, e.on ? 90 : 0);
-    last = e.t;
-  });
-  data.push(0x00, 0xff, 0x2f, 0x00);
-
-  const L = data.length;
-  const bytes = new Uint8Array([
-    0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, ppq >> 8, ppq & 255,
-    0x4d, 0x54, 0x72, 0x6b, (L >>> 24) & 255, (L >>> 16) & 255, (L >>> 8) & 255, L & 255, ...data
-  ]);
-  const name = cur.track.trackName.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 60) || 'chords';
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
-  a.download = `${name}_${cur.bpm}bpm.mid`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-};
-
-// ---------- BPM 조작 / 복사 ----------
+// ---------- BPM 조작 ----------
 const setBpm = (v) => { if (!cur) return; cur.bpm = Math.min(220, Math.max(40, Math.round(v))); renderTempoKey(); save(); };
 $('half').onclick = () => cur?.bpm && setBpm(cur.bpm / 2);
 $('double').onclick = () => cur?.bpm && setBpm(cur.bpm * 2);
@@ -561,13 +476,6 @@ $('tap').onclick = () => {
     const gaps = tapTimes.slice(1).map((t, i) => t - tapTimes[i]);
     setBpm(60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length));
   }
-};
-$('copyPrompt').onclick = async () => {
-  try {
-    await navigator.clipboard.writeText($('prompt').textContent);
-    $('copyPrompt').textContent = '복사됨';
-    setTimeout(() => { $('copyPrompt').textContent = '복사'; }, 1200);
-  } catch { setStatus('복사하지 못했습니다. 텍스트를 직접 선택해 복사하세요.'); }
 };
 $('thr').oninput = renderDna;
 
@@ -600,100 +508,7 @@ async function run(raw) {
     setStatus('BPM과 키를 측정하는 중...');
     const m = buf ? await analyzeAudio(buf).catch(() => null) : null;
 
-    setStatus('AI 분석 중...');export const config = { maxDuration: 45 };
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(501).json({ error: "서버에 GEMINI_API_KEY가 설정되지 않았습니다." });
-
-  const { trackName, artistName, albumName, genreHint, lyrics, bpm, keyName } = req.body || {};
-  if (!trackName || !artistName) return res.status(400).json({ error: "trackName과 artistName이 필요합니다." });
-
-  const prompt = `당신은 프로듀서와 DJ를 위한 음악 분석가입니다. 아래 곡의 사운드 특징을 분석하세요.
-
-- 곡명: ${trackName}
-- 아티스트: ${artistName}
-- 앨범: ${albumName || "Single"}
-- 장르 힌트: ${genreHint || "Unknown"}
-- 오디오에서 측정한 BPM: ${bpm || "측정 안 됨"}
-- 오디오에서 측정한 키: ${keyName || "측정 안 됨"}
-- 가사:
-${lyrics ? String(lyrics).slice(0, 1200) : "(가사 데이터베이스에서 가사를 찾지 못했습니다. 가사가 있는 곡인지는 알 수 없습니다.)"}
-
-규칙:
-1. categories는 정확히 4개: "장르 & 세부 장르", "주요 악기", "보컬 스타일", "분위기". 각 2~4개 항목.
-2. conf는 해당 태그에 대한 당신의 추정 확신도(50~99 정수)입니다. 모르면 낮게 주세요.
-3. lyricsSummary와 moodKeywords, note는 한국어로 작성하세요.
-4. 가사를 찾지 못한 것은 연주곡이라는 뜻이 아닙니다. 가사가 제공되지 않았다면 연주곡(Instrumental)이라고 단정하지 말고, 보컬 항목은 확신도를 60 이하로 낮추고 note에 "가사/음원 정보 부족"이라고 쓰세요. lyricsSummary에는 "가사 데이터를 찾지 못해 요약할 수 없습니다"라고 쓰세요.
-5. stylePrompt는 Suno/Udio에 붙여넣을 영어 키워드 한 줄이며, 측정된 BPM과 키가 있으면 포함하세요.`;
-
-  const item = {
-    type: "OBJECT",
-    properties: { label: { type: "STRING" }, conf: { type: "INTEGER" }, note: { type: "STRING" } },
-    required: ["label", "conf", "note"]
-  };
-  const responseSchema = {
-    type: "OBJECT",
-    properties: {
-      categories: {
-        type: "ARRAY",
-        items: {
-          type: "OBJECT",
-          properties: { title: { type: "STRING" }, items: { type: "ARRAY", items: item } },
-          required: ["title", "items"]
-        }
-      },
-      moodKeywords: { type: "ARRAY", items: { type: "STRING" } },
-      lyricsSummary: { type: "STRING" },
-      stylePrompt: { type: "STRING" }
-    },
-    required: ["categories", "moodKeywords", "lyricsSummary", "stylePrompt"]
-  };
-
-  try {
-    const models = [...new Set([process.env.GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"].filter(Boolean))];
-    const mk = (think) => JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3,
-        responseMimeType: "application/json",
-        responseSchema,
-        ...(think ? { thinkingConfig: { thinkingLevel: "low" } } : {})
-      }
-    });
-    const deadline = Date.now() + 40000;
-    const call = async (m, think) => {
-      const left = deadline - Date.now();
-      if (left < 3000) return { ok: false, status: 504 };
-      try {
-        return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: mk(think),
-          signal: AbortSignal.timeout(Math.min(20000, left))
-        });
-      } catch {
-        return { ok: false, status: 504 };
-      }
-    };
-    let r;
-    for (const m of models) {
-      r = await call(m, true);
-      if (r.status === 400) r = await call(m, false);
-      if (r.ok || ![400, 404, 429, 500, 503, 504].includes(r.status)) break;
-    }
-    if (!r.ok) return res.status(r.status).json({ error: `Gemini API 오류 (${r.status})` });
-
-    const data = await r.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return res.status(502).json({ error: "Gemini 응답이 비어 있습니다." });
-    return res.status(200).json(JSON.parse(text));
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "분석 실패" });
-  }
-}
+    setStatus('AI 분석 중...');
     let ai = null, aiErr = '';
     try { ai = await analyzeAI(track, lyr, m); } catch (e) { aiErr = e.message; }
 
