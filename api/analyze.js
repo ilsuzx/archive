@@ -18,14 +18,13 @@ export default async function handler(req, res) {
 - 오디오에서 측정한 BPM: ${bpm || "측정 안 됨"}
 - 오디오에서 측정한 키: ${keyName || "측정 안 됨"}
 - 가사:
-${lyrics ? String(lyrics).slice(0, 2500) : "(가사 데이터베이스에서 가사를 찾지 못했습니다. 가사가 있는 곡인지는 알 수 없습니다.)"}
+${lyrics ? String(lyrics).slice(0, 1200) : "(가사 데이터베이스에서 가사를 찾지 못했습니다. 가사가 있는 곡인지는 알 수 없습니다.)"}
 
 규칙:
 1. categories는 정확히 4개: "장르 & 세부 장르", "주요 악기", "보컬 스타일", "분위기". 각 2~4개 항목.
 2. conf는 해당 태그에 대한 당신의 추정 확신도(50~99 정수)입니다. 모르면 낮게 주세요.
 3. lyricsSummary와 moodKeywords, note는 한국어로 작성하세요.
 4. 가사를 찾지 못한 것은 연주곡이라는 뜻이 아닙니다. 가사가 제공되지 않았다면 연주곡(Instrumental)이라고 단정하지 말고, 보컬 항목은 확신도를 60 이하로 낮추고 note에 "가사/음원 정보 부족"이라고 쓰세요. lyricsSummary에는 "가사 데이터를 찾지 못해 요약할 수 없습니다"라고 쓰세요.
-5. stylePrompt는 Suno/Udio에 붙여넣을 영어 키워드 한 줄이며, 측정된 BPM과 키가 있으면 포함하세요.`;
 
   const item = {
     type: "OBJECT",
@@ -44,35 +43,49 @@ ${lyrics ? String(lyrics).slice(0, 2500) : "(가사 데이터베이스에서 가
         }
       },
       moodKeywords: { type: "ARRAY", items: { type: "STRING" } },
-      lyricsSummary: { type: "STRING" },
-      stylePrompt: { type: "STRING" }
+      lyricsSummary: { type: "STRING" }
     },
-    required: ["categories", "moodKeywords", "lyricsSummary", "stylePrompt"]
+    required: ["categories", "moodKeywords", "lyricsSummary"]
   };
 
   try {
-    const models = [process.env.GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"].filter(Boolean);
-    const body = JSON.stringify({
+    const models = [...new Set([process.env.GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"].filter(Boolean))];
+    const mk = (think) => JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, responseMimeType: "application/json", responseSchema }
+      generationConfig: {
+        temperature: 0.3,
+        responseMimeType: "application/json",
+        responseSchema,
+        ...(think ? { thinkingConfig: { thinkingLevel: "low" } } : {})
+      }
     });
-    let r;
-    for (const m of models) {
+    const deadline = Date.now() + 40000;
+    const call = async (m, think) => {
+      const left = deadline - Date.now();
+      if (left < 3000) return { ok: false, status: 504 };
       try {
-        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body,
-          signal: AbortSignal.timeout(14000)
+          body: mk(think),
+          signal: AbortSignal.timeout(Math.min(20000, left))
         });
       } catch {
-        r = { ok: false, status: 504 };
-        continue;
+        return { ok: false, status: 504 };
       }
-      if (r.ok || ![404, 429, 500, 503].includes(r.status)) break;
-      await new Promise((ok) => setTimeout(ok, 500));
+    };
+    let r;
+    const tried = [];
+    for (const m of models) {
+      r = await call(m, true);
+      if (r.status === 400) r = await call(m, false);
+      if (r.ok) break;
+      let detail = "";
+      try { detail = (await r.clone().json())?.error?.message?.slice(0, 80) || ""; } catch {}
+      tried.push(`${m}:${r.status}${detail ? " " + detail : ""}`);
+      if (![400, 404, 429, 500, 503, 504].includes(r.status)) break;
     }
-    if (!r.ok) return res.status(r.status).json({ error: `Gemini API 오류 (${r.status})` });
+    if (!r.ok) return res.status(r.status).json({ error: `Gemini API 오류 (${r.status}) [${tried.join(" | ")}]` });
 
     const data = await r.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
