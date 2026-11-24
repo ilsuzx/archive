@@ -1,3 +1,5 @@
+export const config = { maxDuration: 30 };
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
@@ -48,17 +50,21 @@ ${String(lyrics || "가사 없음").slice(0, 2500)}
   };
 
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"}:generateContent`,
-      {
+    const models = [process.env.GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"].filter(Boolean);
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.3, responseMimeType: "application/json", responseSchema }
+    });
+    let r;
+    for (const m of models) {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, responseMimeType: "application/json", responseSchema }
-        })
-      }
-    );
+        body
+      });
+      if (r.ok || ![404, 429, 500, 503].includes(r.status)) break;
+      await new Promise((ok) => setTimeout(ok, 700));
+    }
     if (!r.ok) return res.status(r.status).json({ error: `Gemini API 오류 (${r.status})` });
 
     const data = await r.json();
