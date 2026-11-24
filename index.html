@@ -373,9 +373,38 @@ async function analyzeAI(t, lyr, m) {
       bpm: m?.bpm || null, keyName: m?.key ? keyName(m.key) : null
     })
   });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    if (j.debug) console.warn('[AI 분석 실패]', j.code, j.debug);
+    throw new Error(j.error || `AI 분석 요청 실패 (HTTP ${r.status})`);
+  }
   return r.json();
 }
+
+// 저장된 측정값·가사는 그대로 두고 AI 분석만 다시 요청
+let aiBusy = false;
+async function retryAI() {
+  if (!cur || aiBusy) return;
+  aiBusy = true;
+  const btn = document.querySelector('.retry-ai');
+  if (btn) { btn.disabled = true; btn.textContent = 'AI 분석 중...'; }
+  setStatus('AI 분석 다시 시도 중...');
+  try {
+    const m = { bpm: cur.bpm, key: cur.key };
+    cur.ai = await analyzeAI(cur.track, { found: cur.lyricsFound, text: cur.lyrics }, m);
+    store.set(curKey, cur);
+    $('chips').innerHTML = (cur.ai.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
+    $('summary').textContent = cur.ai.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
+    $('info').textContent = 'AI + 오디오 측정';
+    renderDna();
+    setStatus(`${cur.track.artistName} – ${cur.track.trackName}`);
+  } catch (e) {
+    $('info').textContent = `오디오 측정만 사용 (${e.message})`;
+    setStatus(`${cur.track.artistName} – ${cur.track.trackName}`);
+    renderDna();
+  } finally { aiBusy = false; }
+}
+document.addEventListener('click', (e) => { if (e.target.closest('.retry-ai')) retryAI(); });
 
 // ---------- 렌더링 ----------
 function save() { if (cur && curKey) store.set(curKey, cur); }
@@ -414,7 +443,7 @@ function renderDna() {
   $('thrVal').textContent = thr + '%';
   const cats = cur?.ai?.categories;
   if (!cats) {
-    $('dna').innerHTML = `<div class="muted">AI 분석을 사용할 수 없습니다. 장르: ${esc(cur?.track.primaryGenreName || '알 수 없음')}</div>`;
+    $('dna').innerHTML = `<div class="muted">AI 분석을 사용할 수 없습니다. 장르: ${esc(cur?.track.primaryGenreName || '알 수 없음')}</div><div style="margin-top:10px"><button type="button" class="small retry-ai">AI 분석 다시 시도</button></div>`;
     return;
   }
   $('dna').innerHTML = cats.map((c) => {
@@ -487,12 +516,14 @@ async function run(raw) {
   $('info').textContent = '';
   try {
     const cached = store.get(curKey);
-    if (cached?.track && cached.ai) {
+    if (cached?.track) {
       setStatus('저장된 분석을 불러오는 중...');
       const buf = await (cached.track.previewUrl ? loadAudio(cached.track.previewUrl).catch(() => null) : null);
       render(cached, buf);
-      $('info').textContent = '저장된 결과';
       setStatus(`${cached.track.artistName} – ${cached.track.trackName}`);
+      if (cached.ai) { $('info').textContent = '저장된 결과'; return; }
+      $('info').textContent = '저장된 측정값 사용, AI 분석 재시도 중...';
+      await retryAI();
       return;
     }
     setStatus(`"${q}" 검색 중...`);
@@ -515,7 +546,7 @@ async function run(raw) {
     const data = { track, bpm: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key), engine: m?.engine, ai, lyrics: lyr.text, lyricsFound: lyr.found };
     if (data.measured || ai) store.set(curKey, data);
     render(data, buf);
-    $('info').textContent = ai ? 'AI + 오디오 측정' : `오디오 측정만 사용 (AI: ${aiErr})`;
+    $('info').textContent = ai ? 'AI + 오디오 측정' : `오디오 측정만 사용 (${aiErr})`;
     setStatus(`${track.artistName} – ${track.trackName}`);
   } catch (e) {
     setStatus(`오류: ${e.message}`);
