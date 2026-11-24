@@ -421,12 +421,14 @@ async function fetchLyrics(t) {
   const title = t.trackName.replace(/\s*[\(\[].*?[\)\]]/g, '').trim() || t.trackName;
   const artist = t.artistName.split(/[,&]/)[0].trim();
   const ok = (d) => d && (d.plainLyrics || d.syncedLyrics) && (!dur || !d.duration || Math.abs(d.duration - dur) <= 6);
-  const pick = (list) => Array.isArray(list) ? list.find(ok) : null;
+  // 검색 결과는 제목과 아티스트가 모두 맞는 것만 채택한다 (엉뚱한 곡의 가사가 붙는 것을 방지)
+  const same = (a, b) => { a = norm(a); b = norm(b); return Boolean(a && b && (a.includes(b) || b.includes(a))); };
+  const match = (d) => ok(d) && same(d.trackName, title) && same(d.artistName, artist);
+  const pick = (list) => Array.isArray(list) ? list.find(match) : null;
 
   let d = await J(`${L}get?track_name=${e(t.trackName)}&artist_name=${e(t.artistName)}&album_name=${e(t.collectionName || '')}&duration=${Math.round(dur)}`);
   if (!ok(d)) d = pick(await J(`${L}search?track_name=${e(title)}&artist_name=${e(artist)}`));
   if (!ok(d)) d = pick(await J(`${L}search?q=${e(title + ' ' + artist)}`));
-  if (!ok(d)) d = pick(await J(`${L}search?q=${e(title)}`));
   let text = ok(d) ? clean(d.plainLyrics || d.syncedLyrics) : '';
 
   if (!text) {
