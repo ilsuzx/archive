@@ -78,11 +78,11 @@ ${lyrics ? lyrics.slice(0, 1200) : "(가사 데이터베이스에서 가사를 �
     required: ["categories", "moodKeywords", "lyricsSummary"]
   };
 
-  // 모델별 쿼터는 따로 계산되므로, 구형(2.5) 안정 모델을 마지막 보루로 추가
+  // 모델별 쿼터·혼잡도는 따로라서, 세대가 다른 모델을 섞어 두 줄(lane)로 동시에 시도한다
   const models = [...new Set([
     process.env.GEMINI_MODEL,
-    "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash",
-    "gemini-2.5-flash-lite", "gemini-2.5-flash"
+    "gemini-3.5-flash-lite", "gemini-2.5-flash-lite",
+    "gemini-3.6-flash", "gemini-3.8-flash", "gemini-2.5-flash"
   ].filter(Boolean))];
 
   const mk = (think) => JSON.stringify({
@@ -98,83 +98,109 @@ ${lyrics ? lyrics.slice(0, 1200) : "(가사 데이터베이스에서 가사를 �
 
   const deadline = Date.now() + 40000;
   const left = () => deadline - Date.now();
+  const ctl = new AbortController();   // 한 줄이 성공하면 나머지 요청을 중단
 
   // 단일 호출: { ok, status, text }
-  const call = async (m, think) => {
-    if (left() < 3000) return { ok: false, status: 504, text: "" };
+  const call = async (m, think, ms) => {
+    if (left() < 3000 || ctl.signal.aborted) return { ok: false, status: 504, text: "" };
+    const c = new AbortController();
+    const timer = setTimeout(() => c.abort(), Math.min(ms, left()));
+    const onAbort = () => c.abort();
+    ctl.signal.addEventListener("abort", onAbort, { once: true });
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: mk(think),
-        signal: AbortSignal.timeout(Math.min(20000, left()))
+        signal: c.signal
       });
       return { ok: r.ok, status: r.status, text: await r.text() };
     } catch {
       return { ok: false, status: 504, text: "" };
+    } finally {
+      clearTimeout(timer);
+      ctl.signal.removeEventListener("abort", onAbort);
     }
   };
 
-  const tried = [];       // 디버그용 (클라이언트 콘솔에만 표시)
-  let saw429 = false, saw5xx = false, sawAuth = false;
-  let result = null;
+  // 응답 본문 → 결과 객체 (형식이 틀리면 null)
+  const parseOut = (text) => {
+    try {
+      const cand = JSON.parse(text)?.candidates?.[0];
+      const t = (cand?.content?.parts || []).filter((p) => !p.thought && p.text).map((p) => p.text).join("");
+      if (!t) return null;
+      const out = JSON.parse(t);
+      return Array.isArray(out.categories) && out.categories.length ? out : null;
+    } catch { return null; }
+  };
 
-  outer: for (const m of models) {
-    let think = true, attempts = 0;
-    while (attempts < 2) {
-      attempts++;
-      let r = await call(m, think);
-      // thinkingConfig 미지원 모델이면 옵션 빼고 즉시 재시도 (시도 횟수에 포함하지 않음)
-      if (r.status === 400 && think) { think = false; attempts--; continue; }
+  const tried = [];       // 디버그용
+  let saw429 = false, saw5xx = false, sawAuth = false, finished = false;
 
-      if (r.ok) { result = r; break outer; }
+  // 한 줄: 모델을 순서대로 시도. 성공하면 결과 객체, 전부 실패하면 null
+  const lane = async (list) => {
+    for (const m of list) {
+      let think = true, attempts = 0;
+      while (attempts < 2) {
+        if (finished || sawAuth || left() < 3000) return null;
+        attempts++;
+        const r = await call(m, think, 14000);
+        if (finished) return null;
+        // thinkingConfig 미지원 모델이면 옵션 빼고 즉시 재시도 (시도 횟수에 포함하지 않음)
+        if (r.status === 400 && think) { think = false; attempts--; continue; }
 
-      tried.push(`${m}:${r.status}`);
-
-      if (r.status === 429) {
-        saw429 = true;
-        const { daily, retryMs } = parse429(r.text);
-        // 일일 한도면 다른 모델로, 분당 한도이고 짧게 기다리면 되면 같은 모델 재시도
-        if (!daily && retryMs > 0 && retryMs <= 4000 && left() > retryMs + 5000 && attempts < 2) {
-          await sleep(retryMs + 200);
-          continue;
+        if (r.ok) {
+          const out = parseOut(r.text);
+          if (out) return out;
+          tried.push(`${m}:bad`);   // 비었거나 잘림 → 다음 모델
+          break;
         }
-        break; // 다음 모델
-      }
-      if (r.status === 500 || r.status === 503 || r.status === 504) {
-        saw5xx = true;
-        // 일시적 과부하: 짧은 백오프 후 같은 모델 1회 재시도
-        if (attempts < 2 && left() > 8000) { await sleep(800 + Math.random() * 700); continue; }
-        break;
-      }
-      if (r.status === 401 || r.status === 403) { sawAuth = true; break outer; }
-      break; // 400/404 등: 다음 모델
-    }
-  }
+        tried.push(`${m}:${r.status}`);
 
-  if (!result) {
+        if (r.status === 429) {
+          saw429 = true;
+          const { daily, retryMs } = parse429(r.text);
+          if (!daily && retryMs > 0 && retryMs <= 4000 && left() > retryMs + 5000 && attempts < 2) {
+            await sleep(retryMs + 200);
+            continue;
+          }
+          break;
+        }
+        if (r.status === 500 || r.status === 503) {
+          saw5xx = true;
+          // 일시적 과부하: 짧게 쉬고 같은 모델 1회 재시도
+          if (attempts < 2 && left() > 8000) { await sleep(600 + Math.random() * 600); continue; }
+          break;
+        }
+        if (r.status === 504) { saw5xx = true; break; }   // 시간 초과: 기다리지 말고 다음 모델
+        if (r.status === 401 || r.status === 403) { sawAuth = true; return null; }
+        break; // 400/404 등: 다음 모델
+      }
+    }
+    return null;
+  };
+
+  const lanes = [[], []];
+  models.forEach((m, i) => lanes[i % 2].push(m));
+  const out = await new Promise((resolve) => {
+    let pending = lanes.length;
+    const done = (o) => {
+      if (o) { finished = true; ctl.abort(); resolve(o); }
+      else if (--pending === 0) resolve(null);
+    };
+    lanes.forEach((l) => lane(l).then(done, () => done(null)));
+  });
+
+  if (!out) {
     let code = "failed", status = 502, error = "AI 분석에 실패했습니다.";
     if (sawAuth) { code = "auth"; status = 500; error = "Gemini API 키가 유효하지 않거나 권한이 없습니다. 서버 설정을 확인하세요."; }
     else if (saw5xx) { code = "overloaded"; status = 503; error = "AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해 주세요."; }
     else if (saw429) { code = "quota"; status = 429; error = "AI 사용 한도를 초과했습니다. 잠시 후 다시 시도하거나 API 요금제/쿼터를 확인하세요."; }
     res.setHeader("Retry-After", "20");
-    return res.status(status).json({ error, code, retryable: code !== "auth", debug: tried });
+    return res.status(status).json({ error: `${error} [${tried.slice(0, 6).join(", ")}]`, code, retryable: code !== "auth", debug: tried });
   }
 
-  try {
-    const data = JSON.parse(result.text);
-    const cand = data?.candidates?.[0];
-    const text = (cand?.content?.parts || []).filter((p) => !p.thought && p.text).map((p) => p.text).join("");
-    if (!text) return res.status(502).json({ error: "Gemini 응답이 비어 있습니다.", code: "empty", retryable: true, debug: tried });
-    const out = JSON.parse(text);
-    if (!Array.isArray(out.categories) || !out.categories.length)
-      return res.status(502).json({ error: "AI 응답 형식이 올바르지 않습니다.", code: "bad_format", retryable: true, debug: tried });
-
-    if (CACHE.size >= CACHE_MAX) CACHE.delete(CACHE.keys().next().value);
-    CACHE.set(cacheKey, out);
-    return res.status(200).json(out);
-  } catch {
-    // 출력이 중간에 잘렸을 때 등
-    return res.status(502).json({ error: "AI 응답을 해석하지 못했습니다. 다시 시도해 주세요.", code: "parse", retryable: true, debug: tried });
-  }
+  if (CACHE.size >= CACHE_MAX) CACHE.delete(CACHE.keys().next().value);
+  CACHE.set(cacheKey, out);
+  return res.status(200).json(out);
 }
