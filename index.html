@@ -5,86 +5,94 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sonic Lens</title>
 <style>
-  :root { --bg:#fafaf9; --card:#fff; --fg:#1c1917; --mut:#78716c; --line:#e7e5e4; --ac:#4f46e5; --ac-fg:#fff; color-scheme: light dark; }
+  :root { --bg:#fafafa; --card:#fff; --fg:#18181b; --mut:#71717a; --line:#e8e8ea; --soft:#f4f4f5; --ac:#18181b; --ac-fg:#fff; color-scheme: light dark; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#151413; --card:#1c1b1a; --fg:#e7e5e4; --mut:#a8a29e; --line:#2e2c2a; --ac:#818cf8; --ac-fg:#151413; }
+    :root { --bg:#0b0b0c; --card:#131314; --fg:#ededee; --mut:#8f8f96; --line:#26262a; --soft:#1b1b1e; --ac:#ededee; --ac-fg:#0b0b0c; }
   }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Pretendard","Noto Sans KR",sans-serif; -webkit-font-smoothing:antialiased; }
   header { border-bottom:1px solid var(--line); background:var(--card); }
-  .wrap { max-width:1080px; margin:0 auto; padding:0 16px; }
-  .top { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px 0; }
-  h1 { font-size:16px; margin:0; font-weight:700; }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 20px; }
+  .top { display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; padding:16px 0; }
+  h1 { font-size:15px; margin:0; font-weight:700; letter-spacing:-.01em; }
   form { flex:1; display:flex; gap:8px; min-width:260px; }
-  input[type=text] { flex:1; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; }
-  input[type=text]:focus-visible, button:focus-visible, summary:focus-visible { outline:2px solid var(--ac); outline-offset:1px; }
-  button { font:inherit; padding:7px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
-  button:hover { border-color:var(--mut); }
+  input[type=text] { flex:1; padding:9px 14px; border:1px solid transparent; border-radius:8px; background:var(--soft); color:var(--fg); font:inherit; }
+  input[type=text]::placeholder { color:var(--mut); }
+  input[type=text]:focus-visible, button:focus-visible, summary:focus-visible { outline:2px solid var(--fg); outline-offset:2px; }
+  button { font:inherit; padding:8px 14px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); cursor:pointer; transition:background .15s, border-color .15s, opacity .15s; }
+  button:hover { background:var(--soft); }
+  button:disabled { opacity:.5; cursor:default; }
   button.primary { background:var(--ac); color:var(--ac-fg); border-color:var(--ac); font-weight:600; }
-  button.small { padding:2px 8px; font-size:12px; }
-  #candBox { margin-top:8px; font-size:13px; }
+  button.primary:hover { background:var(--ac); opacity:.85; }
+  button.small { padding:3px 10px; font-size:12px; border-radius:6px; }
+  #candBox { margin:0 0 12px; font-size:13px; }
   #candBox summary { cursor:pointer; color:var(--mut); }
-  .cand { display:flex; gap:10px; align-items:center; width:100%; text-align:left; margin-top:6px; padding:6px 10px; }
-  .cand img { width:36px; height:36px; border-radius:4px; flex:none; background:var(--line); }
+  .cand { display:flex; gap:10px; align-items:center; width:100%; text-align:left; margin-top:6px; padding:8px 10px; }
+  .cand img { width:36px; height:36px; border-radius:6px; flex:none; background:var(--line); }
   .cand .t { font-weight:600; }
-  .cand.on { border-color:var(--ac); }
-  .status { display:flex; justify-content:space-between; gap:12px; padding:8px 0; color:var(--mut); font-size:12px; border-top:1px solid var(--line); }
-  main { max-width:1080px; margin:0 auto; padding:16px; display:grid; grid-template-columns:minmax(0,5fr) minmax(0,7fr); gap:16px; }
+  .cand.on { border-color:var(--fg); }
+  .status { display:flex; justify-content:space-between; gap:12px; padding:10px 0; color:var(--mut); font-size:12px; border-top:1px solid var(--line); }
+  main { max-width:1040px; margin:0 auto; padding:20px; display:grid; grid-template-columns:minmax(0,5fr) minmax(0,7fr); gap:20px; }
   @media (max-width:820px) { main { grid-template-columns:1fr; } }
-  .col { display:flex; flex-direction:column; gap:16px; min-width:0; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
-  h2 { font-size:13px; margin:0 0 10px; font-weight:700; }
+  .col { display:flex; flex-direction:column; gap:20px; min-width:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; }
+  h2 { font-size:13px; margin:0 0 14px; font-weight:600; }
   .muted { color:var(--mut); font-size:12px; }
-  .track { display:flex; gap:12px; align-items:center; }
-  .track img { width:72px; height:72px; border-radius:6px; object-fit:cover; background:var(--line); }
+  .track { display:flex; gap:14px; align-items:center; }
+  .track img { width:80px; height:80px; border-radius:8px; object-fit:cover; background:var(--line); }
   .track div { min-width:0; }
   .track b, .track span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  audio { width:100%; margin-top:12px; height:36px; }
+  .track b { font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  audio { width:100%; margin-top:14px; height:36px; }
   canvas { width:100%; height:48px; display:block; margin-top:8px; }
-  .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .stat .v { font-size:26px; font-weight:700; line-height:1.2; }
-  .stat .row { display:flex; gap:4px; margin-top:6px; }
+  .savebar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .savebar b { font-weight:600; }
+  .acts { display:flex; gap:8px; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .stat .v { font-size:28px; font-weight:600; line-height:1.2; letter-spacing:-.02em; }
+  .stat .row { display:flex; gap:4px; margin-top:8px; }
   .dna { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   @media (max-width:560px) { .dna { grid-template-columns:1fr; } }
-  .group { border:1px solid var(--line); border-radius:6px; padding:12px; }
-  .group h3 { font-size:12px; margin:0 0 8px; }
-  .tag { margin-bottom:8px; }
+  .group { background:var(--soft); border-radius:10px; padding:14px; }
+  .group h3 { font-size:12px; margin:0 0 10px; color:var(--mut); font-weight:600; }
+  .tag { margin-bottom:10px; }
+  .tag:last-child { margin-bottom:0; }
   .tag .l { display:flex; justify-content:space-between; gap:8px; }
-  .bar { height:3px; background:var(--line); border-radius:2px; margin:3px 0; }
+  .bar { height:3px; background:var(--line); border-radius:2px; margin:4px 0; }
   .bar i { display:block; height:100%; background:var(--ac); border-radius:2px; }
-  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
-  .chip { border:1px solid var(--line); border-radius:999px; padding:1px 10px; font-size:12px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .chip { background:var(--soft); border-radius:999px; padding:2px 11px; font-size:12px; }
   .range { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--mut); }
   .range input { accent-color:var(--ac); }
-  details { margin-top:10px; }
+  details { margin-top:12px; }
   summary { cursor:pointer; color:var(--mut); font-size:12px; }
   pre { white-space:pre-wrap; max-height:220px; overflow:auto; font:inherit; font-size:12px; margin:8px 0 0; }
-  .prompt { font-family:ui-monospace,Menlo,monospace; font-size:12px; border:1px solid var(--line); border-radius:6px; padding:10px; margin-top:12px; user-select:all; }
-  .head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+  .head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:14px; }
   .btns { display:flex; gap:8px; }
   .btns button { flex:1; }
   [hidden] { display:none !important; }
-  .tabs { display:flex; gap:4px; }
-  .tabs button { border:0; background:none; color:var(--mut); padding:6px 10px; }
-  .tabs button[aria-selected=true] { color:var(--fg); background:var(--bg); font-weight:700; }
-  .page { max-width:1080px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:16px; }
-  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .tabs { display:flex; gap:2px; }
+  .tabs button { border:0; background:none; color:var(--mut); padding:6px 12px; border-radius:6px; }
+  .tabs button:hover { background:var(--soft); }
+  .tabs button[aria-selected=true] { color:var(--fg); background:var(--soft); font-weight:600; }
+  .page { max-width:1040px; margin:0 auto; padding:20px; display:flex; flex-direction:column; gap:20px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
   @media (max-width:820px) { .two { grid-template-columns:1fr; } }
-  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
-  .sum .v { font-size:22px; font-weight:700; line-height:1.3; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:16px; }
+  .sum .v { font-size:22px; font-weight:600; line-height:1.3; letter-spacing:-.02em; }
   .hist { display:flex; align-items:flex-end; gap:3px; margin-top:8px; }
   .hist > div { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
   .hist b { font-size:10px; font-weight:400; color:var(--mut); height:14px; line-height:14px; }
   .hist i { display:block; width:100%; background:var(--ac); border-radius:2px 2px 0 0; min-height:2px; }
   .hist span { font-size:10px; color:var(--mut); height:14px; line-height:14px; white-space:nowrap; }
-  .split { display:flex; height:10px; border-radius:5px; overflow:hidden; background:var(--line); margin:6px 0; }
+  .split { display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--line); margin:6px 0; }
   .split i { display:block; height:100%; background:var(--ac); }
   .split i + i { background:var(--mut); }
-  .progress { height:6px; background:var(--line); border-radius:3px; margin:10px 0 6px; overflow:hidden; }
+  .progress { height:4px; background:var(--line); border-radius:2px; margin:12px 0 8px; overflow:hidden; }
   .progress i { display:block; height:100%; background:var(--ac); }
-  .song { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); }
+  .song { display:flex; gap:12px; align-items:center; padding:12px 0; border-top:1px solid var(--line); }
   .song:first-child { border-top:0; }
-  .song img { width:44px; height:44px; border-radius:4px; object-fit:cover; background:var(--line); flex:none; }
+  .song img { width:44px; height:44px; border-radius:6px; object-fit:cover; background:var(--line); flex:none; }
   .song .meta { flex:1; min-width:0; }
   .song .meta b, .song .meta span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
@@ -121,6 +129,11 @@
       </div>
       <audio id="player" controls></audio>
       <canvas id="spectrum" aria-hidden="true"></canvas>
+    </section>
+
+    <section class="card savebar" id="saveBar" hidden>
+      <div><b id="saveTitle"></b><div class="muted" id="saveSub"></div></div>
+      <div class="acts" id="saveActs"></div>
     </section>
 
     <section class="card">
@@ -172,14 +185,14 @@
   <div id="tasteStats"></div>
   <section class="card">
     <div class="head">
-      <h2 style="margin:0">분석한 곡 <span class="muted" id="libCount"></span></h2>
+      <h2 style="margin:0">내 취향에 추가한 곡 <span class="muted" id="libCount"></span></h2>
       <div class="btns">
         <button type="button" class="small" id="expBtn">내보내기</button>
         <button type="button" class="small" id="impBtn">불러오기</button>
         <input id="impFile" type="file" accept="application/json,.json" hidden />
       </div>
     </div>
-    <div class="muted" id="libMsg" role="status" style="margin-bottom:6px">분석 결과는 이 브라우저에만 저장됩니다. 브라우저 데이터를 지우기 전에 내보내기로 백업하세요.</div>
+    <div class="muted" id="libMsg" role="status" style="margin-bottom:6px">내 취향에 추가한 곡만 이 브라우저에 저장됩니다. 브라우저 데이터를 지우기 전에 내보내기로 백업하세요.</div>
     <div id="libList"></div>
   </section>
 </div>
@@ -197,7 +210,9 @@ const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KS_MAJ = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
 const KS_MIN = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
 
-let cur = null, curKey = '', tapTimes = [];
+let cur = null, tapTimes = [];
+const temp = new Map();      // 아직 취향에 추가하지 않은 분석 결과 (새로고침하면 사라짐)
+const skipped = new Set();   // "추가 안 함"을 고른 곡 ID
 let audioCtx = null, analyser = null, connected = false, blobUrl = null;
 
 const setStatus = (m) => { $('statusText').textContent = m; };
@@ -467,7 +482,8 @@ async function retryAI() {
   try {
     const m = { bpm: cur.bpm, key: cur.key };
     cur.ai = await analyzeAI(cur.track, { found: cur.lyricsFound, text: cur.lyrics }, m);
-    persist(cur, curKey);
+    commit(cur);
+    renderSaveBar();
     $('chips').innerHTML = (cur.ai.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
     $('summary').textContent = cur.ai.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
     $('info').textContent = 'AI + 오디오 측정';
@@ -482,7 +498,56 @@ async function retryAI() {
 document.addEventListener('click', (e) => { if (e.target.closest('.retry-ai')) retryAI(); });
 
 // ---------- 렌더링 ----------
-function save() { if (cur && curKey) persist(cur, curKey); }
+function save() { commit(cur); }
+
+// 취향에 추가된 곡이면 저장소를, 아니면 임시 보관함을 갱신한다
+function commit(d) {
+  if (!d?.track) return;
+  const id = String(d.track.trackId), e = loadLib().find((x) => x.id === id);
+  if (e) persist(d, e.key); else if (d.measured || d.ai) temp.set(id, d);
+}
+const isSaved = (d) => Boolean(d?.track && loadLib().some((x) => x.id === String(d.track.trackId)));
+
+function renderSaveBar() {
+  const bar = $('saveBar');
+  if (!cur?.track || !(cur.measured || cur.ai)) { bar.hidden = true; return; }
+  const id = String(cur.track.trackId);
+  let title, sub, acts;
+  if (isSaved(cur)) {
+    title = '내 취향에 추가됨'; sub = '취향 탭 통계에 반영되고 이 브라우저에 저장됩니다.';
+    acts = '<button type="button" class="small" data-save="remove">제거</button>';
+  } else if (skipped.has(id)) {
+    title = '내 취향에 추가하지 않았습니다'; sub = '이 분석은 취향 통계에 반영되지 않습니다.';
+    acts = '<button type="button" class="primary small" data-save="add">추가</button>';
+  } else {
+    title = '이 곡을 내 취향에 추가할까요?'; sub = '추가해야 취향 탭 통계에 반영됩니다.';
+    acts = '<button type="button" class="primary" data-save="add">추가</button><button type="button" data-save="skip">건너뛰기</button>';
+  }
+  $('saveTitle').textContent = title; $('saveSub').textContent = sub; $('saveActs').innerHTML = acts;
+  bar.hidden = false;
+}
+function addToLib() {
+  if (!cur?.track) return;
+  const id = String(cur.track.trackId);
+  cur.savedAt = Date.now();
+  store.set('sl4:id:' + id, cur);
+  temp.delete(id); skipped.delete(id);
+  renderSaveBar();
+}
+function removeFromLib() {
+  if (!cur?.track) return;
+  const id = String(cur.track.trackId);
+  loadLib().find((x) => x.id === id)?.keys.forEach((k) => { try { localStorage.removeItem(k); } catch {} });
+  temp.set(id, cur); skipped.add(id);
+  renderSaveBar();
+}
+$('saveBar').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-save]'); if (!b) return;
+  const a = b.dataset.save;
+  if (a === 'add') addToLib();
+  else if (a === 'remove') removeFromLib();
+  else if (a === 'skip') { skipped.add(String(cur.track.trackId)); renderSaveBar(); }
+});
 
 function render(d, buf) {
   cur = d;
@@ -504,6 +569,7 @@ function render(d, buf) {
   $('summary').textContent = d.ai?.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
   $('lyrics').textContent = d.lyrics;
   renderDna();
+  renderSaveBar();
 }
 
 function renderTempoKey() {
@@ -586,15 +652,16 @@ $('thr').oninput = renderDna;
 // ---------- 파이프라인 ----------
 let runSeq = 0;   // 가장 최근 요청만 화면에 반영 (늦게 끝난 이전 요청이 덮어쓰는 것을 방지)
 
-async function tryCache(my) {
-  const cached = store.get(curKey);
+async function tryCache(my, id) {
+  const inLib = loadLib().find((e) => e.id === String(id));
+  const cached = inLib ? inLib.d : temp.get(String(id));
   if (!cached?.track) return false;
   setStatus('저장된 분석을 불러오는 중...');
   const buf = await (cached.track.previewUrl ? loadAudio(cached.track.previewUrl).catch(() => null) : null);
   if (my !== runSeq) return true;
   render(cached, buf);
   setStatus(`${cached.track.artistName} – ${cached.track.trackName}`);
-  if (cached.ai) { $('info').textContent = '저장된 결과'; return true; }
+  if (cached.ai) { $('info').textContent = inLib ? '저장된 결과' : '이번 접속 중 분석한 결과'; return true; }
   $('info').textContent = '저장된 측정값 사용, AI 분석 재시도 중...';
   await retryAI();
   return true;
@@ -619,7 +686,7 @@ async function analyzeTrack(track, my) {
     if (my !== runSeq) return;
 
     const data = { track, bpm: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key), engine: m?.engine, ai, lyrics: lyr.text, lyricsFound: lyr.found, savedAt: Date.now() };
-    if (data.measured || ai) persist(data, curKey);
+    if (data.measured || ai) temp.set(String(track.trackId), data);
     render(data, buf);
     $('info').textContent = ai ? 'AI + 오디오 측정' : `오디오 측정만 사용 (${aiErr})`;
     setStatus(`${track.artistName} – ${track.trackName}`);
@@ -632,9 +699,8 @@ async function analyzeTrack(track, my) {
 async function pickTrack(track) {
   showView('analysis');
   const my = ++runSeq;
-  curKey = 'sl4:id:' + track.trackId;
   $('info').textContent = '';
-  try { if (await tryCache(my)) return; } catch (e) { setStatus(`오류: ${e.message}`); return; }
+  try { if (await tryCache(my, track.trackId)) return; } catch (e) { setStatus(`오류: ${e.message}`); return; }
   await analyzeTrack(track, my);
 }
 
@@ -644,7 +710,6 @@ async function run(raw) {
   const q = await resolveInput(raw);
   if (my !== runSeq) return;
   if (!q) { setStatus('링크에서 곡 제목을 찾지 못했습니다. 제목과 아티스트를 직접 입력하세요.'); return; }
-  const qKey = 'sl4:' + q.toLowerCase();
   $('info').textContent = '';
   $('candBox').hidden = true;
   try {
@@ -658,11 +723,8 @@ async function run(raw) {
     renderCands(list, auto);
     if (!auto) { setStatus('여러 곡이 검색되었습니다. 분석할 곡을 선택하세요.'); return; }
     // 분명히 이 곡이라고 판단되면 곡 ID 기준으로 캐시를 확인한다
-    const t0 = list[0], idKey = 'sl4:id:' + t0.trackId;
-    const old = store.get(qKey);
-    if (!store.get(idKey) && old?.track?.trackId === t0.trackId) store.set(idKey, old);  // 예전 검색어 키 저장분 이전
-    curKey = idKey;
-    if (await tryCache(my)) return;
+    const t0 = list[0];
+    if (await tryCache(my, t0.trackId)) return;
     await analyzeTrack(t0, my);
   } catch (e) {
     if (my === runSeq) setStatus(`오류: ${e.message}`);
@@ -780,7 +842,7 @@ function aggregate(lib) {
 function renderStats(lib) {
   const box = $('tasteStats');
   if (lib.length < MIN_SONGS) {
-    box.innerHTML = `<section class="card"><h2>내 취향</h2><div>곡을 ${MIN_SONGS}곡 이상 분석하면 취향 통계가 표시됩니다.</div><div class="progress"><i style="width:${lib.length / MIN_SONGS * 100}%"></i></div><div class="muted">현재 ${lib.length}곡 / ${MIN_SONGS}곡</div></section>`;
+    box.innerHTML = `<section class="card"><h2>내 취향</h2><div>${MIN_SONGS}곡 이상 추가하면 취향 통계가 표시됩니다.</div><div class="progress"><i style="width:${lib.length / MIN_SONGS * 100}%"></i></div><div class="muted">현재 ${lib.length}곡 / ${MIN_SONGS}곡</div></section>`;
     return;
   }
   const A = aggregate(lib);
@@ -795,7 +857,7 @@ function renderStats(lib) {
   const minor = keys.filter((k) => k.minor).length, major = keys.length - minor;
 
   const sum = `<section class="card"><h2>한눈에 보기</h2><div class="sum">
-    <div><div class="muted">분석한 곡</div><div class="v">${lib.length}곡</div></div>
+    <div><div class="muted">추가한 곡</div><div class="v">${lib.length}곡</div></div>
     <div><div class="muted">AI 분석이 있는 곡</div><div class="v">${A.nAI}곡</div></div>
     <div><div class="muted">평균 BPM</div><div class="v">${bpms.length ? Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length) : '—'}</div></div>
     <div><div class="muted">가장 많은 키</div><div class="v">${camTop[0] ? esc(camTop[0][0]) : '—'}</div>${camTop[0] ? `<div class="muted">${esc(camTop[0][1].name)}</div>` : ''}</div>
@@ -851,7 +913,7 @@ function renderLib(lib) {
       <button type="button" class="small" data-act="open" data-key="${esc(e.key)}">열기</button>
       <button type="button" class="small" data-act="del" data-id="${esc(e.id)}">삭제</button>
     </div>`;
-  }).join('') : '<div class="muted">아직 분석한 곡이 없습니다. 곡을 분석하면 여기에 쌓입니다.</div>';
+  }).join('') : '<div class="muted">아직 추가한 곡이 없습니다. 곡을 분석한 뒤 \"내 취향에 추가\"를 누르면 여기에 쌓입니다.</div>';
 }
 
 function renderTaste() { const lib = loadLib(); renderStats(lib); renderLib(lib); }
@@ -860,7 +922,7 @@ function showView(v) {
   $('analysisView').hidden = v !== 'analysis';
   $('tasteView').hidden = v !== 'taste';
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === v)));
-  if (v === 'taste') renderTaste();
+  if (v === 'taste') renderTaste(); else renderSaveBar();
 }
 document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => showView(b.dataset.view); });
 
@@ -868,10 +930,10 @@ async function openSaved(key) {
   showView('analysis');
   window.scrollTo(0, 0);
   const my = ++runSeq;
-  curKey = key;
+  const id = store.get(key)?.track?.trackId;
   $('info').textContent = '';
   $('candBox').hidden = true;
-  try { if (!(await tryCache(my)) && my === runSeq) setStatus('저장된 분석을 찾지 못했습니다.'); }
+  try { if (!(await tryCache(my, id)) && my === runSeq) setStatus('저장된 분석을 찾지 못했습니다.'); }
   catch (e) { if (my === runSeq) setStatus(`오류: ${e.message}`); }
 }
 
@@ -879,7 +941,7 @@ function deleteSaved(id) {
   const e = loadLib().find((x) => x.id === id);
   if (!e || !confirm(`"${e.d.track.trackName}" 분석 결과를 삭제할까요?`)) return;
   e.keys.forEach((k) => { try { localStorage.removeItem(k); } catch {} });
-  if (cur && String(cur.track?.trackId) === id) { cur = null; curKey = ''; }
+  if (cur && String(cur.track?.trackId) === id) { temp.set(id, cur); skipped.add(id); }
   renderTaste();
 }
 
