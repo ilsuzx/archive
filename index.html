@@ -322,7 +322,7 @@ function detectKey(x, sr) {
 
 let essentiaP = null;
 function getEssentia() {
-  essentiaP ||= (typeof EssentiaWASM === 'function' && typeof Essentia === 'function')
+  if (!essentiaP) essentiaP = (typeof EssentiaWASM === 'function' && typeof Essentia === 'function')
     ? EssentiaWASM().then((w) => new Essentia(w))
     : Promise.reject(new Error('Essentia 로드 실패'));
   return essentiaP;
@@ -344,7 +344,9 @@ async function essentiaMeasure(x) {
 }
 
 async function analyzeAudio(buf) {
-  const ac = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ac;
+  try { ac = new AC({ sampleRate: 44100 }); } catch { ac = new AC(); }
   try {
     const ab = await ac.decodeAudioData(buf.slice(0));
     const x = new Float32Array(ab.length);
@@ -388,13 +390,25 @@ async function resolveInput(raw) {
   } catch { return ''; }
 }
 
+// 폰 브라우저(광고 차단, 비공개 릴레이 등)가 외부 API 직접 호출을 막으면 서버를 거쳐 다시 시도
+async function fetchJsonViaProxy(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('direct');
+    return await r.json();
+  } catch {
+    const r = await fetch('/api/preview?url=' + encodeURIComponent(url));
+    if (!r.ok) throw new Error('곡 검색에 실패했습니다.');
+    return r.json();
+  }
+}
+
 async function searchCandidates(q) {
   // 한국 스토어를 먼저 검색하면 한글 제목/아티스트명이 나와 가사 DB 매칭률이 올라갑니다.
   const seen = new Set(), out = [];
   for (const c of ['kr', 'us']) {
-    const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=8&country=${c}`);
-    if (!r.ok) throw new Error('곡 검색에 실패했습니다.');
-    for (const t of (await r.json()).results || []) {
+    const j = await fetchJsonViaProxy(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=8&country=${c}`);
+    for (const t of j.results || []) {
       if (!seen.has(t.trackId)) { seen.add(t.trackId); out.push(t); }
     }
     if (out.length >= 3) break;
@@ -606,7 +620,7 @@ function setupVisualizer() {
   new ResizeObserver(fit).observe(cv); fit();
 
   p.addEventListener('play', () => {
-    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
     if (!connected && blobUrl) {
       const src = audioCtx.createMediaElementSource(p);
@@ -804,7 +818,7 @@ function aggregate(lib) {
     for (const c of e.d.ai.categories) {
       const def = CATS.find((x) => x.re.test(c.title || ''));
       if (!def) continue;
-      const per = (seen[def.id] ||= new Map());
+      const per = seen[def.id] || (seen[def.id] = new Map());
       for (const it of c.items || []) {
         const k = normLabel(it.label);
         if (!k) continue;
