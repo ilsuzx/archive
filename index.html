@@ -642,12 +642,11 @@ async function run(raw) {
   const q = await resolveInput(raw);
   if (my !== runSeq) return;
   if (!q) { setStatus('링크에서 곡 제목을 찾지 못했습니다. 제목과 아티스트를 직접 입력하세요.'); return; }
-  curKey = 'sl4:' + q.toLowerCase();
+  const qKey = 'sl4:' + q.toLowerCase();
   $('info').textContent = '';
   $('candBox').hidden = true;
   try {
-    if (await tryCache(my)) return;
-
+    // 검색어 자체로는 캐시를 쓰지 않는다 (아티스트명만 검색해도 예전에 분석한 한 곡이 바로 뜨는 문제 방지)
     setStatus(`"${q}" 검색 중...`);
     const list = await searchCandidates(q);
     if (my !== runSeq) return;
@@ -656,7 +655,13 @@ async function run(raw) {
     const auto = list.length === 1 || isStrong(q, list[0]);
     renderCands(list, auto);
     if (!auto) { setStatus('여러 곡이 검색되었습니다. 분석할 곡을 선택하세요.'); return; }
-    await analyzeTrack(list[0], my);
+    // 분명히 이 곡이라고 판단되면 곡 ID 기준으로 캐시를 확인한다
+    const t0 = list[0], idKey = 'sl4:id:' + t0.trackId;
+    const old = store.get(qKey);
+    if (!store.get(idKey) && old?.track?.trackId === t0.trackId) store.set(idKey, old);  // 예전 검색어 키 저장분 이전
+    curKey = idKey;
+    if (await tryCache(my)) return;
+    await analyzeTrack(t0, my);
   } catch (e) {
     if (my === runSeq) setStatus(`오류: ${e.message}`);
   }
