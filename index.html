@@ -63,6 +63,30 @@
   .head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
   .btns { display:flex; gap:8px; }
   .btns button { flex:1; }
+  [hidden] { display:none !important; }
+  .tabs { display:flex; gap:4px; }
+  .tabs button { border:0; background:none; color:var(--mut); padding:6px 10px; }
+  .tabs button[aria-selected=true] { color:var(--fg); background:var(--bg); font-weight:700; }
+  .page { max-width:1080px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:16px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:820px) { .two { grid-template-columns:1fr; } }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+  .sum .v { font-size:22px; font-weight:700; line-height:1.3; }
+  .hist { display:flex; align-items:flex-end; gap:3px; margin-top:8px; }
+  .hist > div { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
+  .hist b { font-size:10px; font-weight:400; color:var(--mut); height:14px; line-height:14px; }
+  .hist i { display:block; width:100%; background:var(--ac); border-radius:2px 2px 0 0; min-height:2px; }
+  .hist span { font-size:10px; color:var(--mut); height:14px; line-height:14px; white-space:nowrap; }
+  .split { display:flex; height:10px; border-radius:5px; overflow:hidden; background:var(--line); margin:6px 0; }
+  .split i { display:block; height:100%; background:var(--ac); }
+  .split i + i { background:var(--mut); }
+  .progress { height:6px; background:var(--line); border-radius:3px; margin:10px 0 6px; overflow:hidden; }
+  .progress i { display:block; height:100%; background:var(--ac); }
+  .song { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); }
+  .song:first-child { border-top:0; }
+  .song img { width:44px; height:44px; border-radius:4px; object-fit:cover; background:var(--line); flex:none; }
+  .song .meta { flex:1; min-width:0; }
+  .song .meta b, .song .meta span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -70,6 +94,10 @@
   <div class="wrap">
     <div class="top">
       <h1>Sonic Lens</h1>
+      <nav class="tabs" role="tablist" aria-label="화면 전환">
+        <button type="button" role="tab" data-view="analysis" aria-selected="true">분석</button>
+        <button type="button" role="tab" data-view="taste" aria-selected="false">내 취향</button>
+      </nav>
       <form id="searchForm">
         <input id="searchInput" type="text" placeholder="곡 제목과 아티스트, 또는 YouTube·Apple Music 링크" aria-label="곡 검색" />
         <button class="primary" type="submit">분석</button>
@@ -80,7 +108,7 @@
   </div>
 </header>
 
-<main>
+<main id="analysisView">
   <div class="col">
     <section class="card">
       <div class="track">
@@ -139,6 +167,22 @@
     </section>
   </div>
 </main>
+
+<div id="tasteView" class="page" hidden>
+  <div id="tasteStats"></div>
+  <section class="card">
+    <div class="head">
+      <h2 style="margin:0">분석한 곡 <span class="muted" id="libCount"></span></h2>
+      <div class="btns">
+        <button type="button" class="small" id="expBtn">내보내기</button>
+        <button type="button" class="small" id="impBtn">불러오기</button>
+        <input id="impFile" type="file" accept="application/json,.json" hidden />
+      </div>
+    </div>
+    <div class="muted" id="libMsg" role="status" style="margin-bottom:6px">분석 결과는 이 브라우저에만 저장됩니다. 브라우저 데이터를 지우기 전에 내보내기로 백업하세요.</div>
+    <div id="libList"></div>
+  </section>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js"></script>
@@ -421,7 +465,7 @@ async function retryAI() {
   try {
     const m = { bpm: cur.bpm, key: cur.key };
     cur.ai = await analyzeAI(cur.track, { found: cur.lyricsFound, text: cur.lyrics }, m);
-    store.set(curKey, cur);
+    persist(cur, curKey);
     $('chips').innerHTML = (cur.ai.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
     $('summary').textContent = cur.ai.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
     $('info').textContent = 'AI + 오디오 측정';
@@ -436,7 +480,7 @@ async function retryAI() {
 document.addEventListener('click', (e) => { if (e.target.closest('.retry-ai')) retryAI(); });
 
 // ---------- 렌더링 ----------
-function save() { if (cur && curKey) store.set(curKey, cur); }
+function save() { if (cur && curKey) persist(cur, curKey); }
 
 function render(d, buf) {
   cur = d;
@@ -572,8 +616,8 @@ async function analyzeTrack(track, my) {
     try { ai = await analyzeAI(track, lyr, m); } catch (e) { aiErr = e.message; }
     if (my !== runSeq) return;
 
-    const data = { track, bpm: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key), engine: m?.engine, ai, lyrics: lyr.text, lyricsFound: lyr.found };
-    if (data.measured || ai) store.set(curKey, data);
+    const data = { track, bpm: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key), engine: m?.engine, ai, lyrics: lyr.text, lyricsFound: lyr.found, savedAt: Date.now() };
+    if (data.measured || ai) persist(data, curKey);
     render(data, buf);
     $('info').textContent = ai ? 'AI + 오디오 측정' : `오디오 측정만 사용 (${aiErr})`;
     setStatus(`${track.artistName} – ${track.trackName}`);
@@ -584,6 +628,7 @@ async function analyzeTrack(track, my) {
 
 // 후보 목록에서 직접 고른 곡: 곡 ID 기준으로 캐시
 async function pickTrack(track) {
+  showView('analysis');
   const my = ++runSeq;
   curKey = 'sl4:id:' + track.trackId;
   $('info').textContent = '';
@@ -592,6 +637,7 @@ async function pickTrack(track) {
 }
 
 async function run(raw) {
+  showView('analysis');
   const my = ++runSeq;
   const q = await resolveInput(raw);
   if (my !== runSeq) return;
@@ -617,6 +663,295 @@ async function run(raw) {
 }
 
 $('searchForm').addEventListener('submit', (e) => { e.preventDefault(); run($('searchInput').value); });
+
+// ---------- 내 취향: 저장된 분석 모음 ----------
+const LIB_PREFIX = 'sl4:';
+const MIN_SONGS = 5;
+const CATS = [
+  { id: 'genre', title: '장르 & 세부 장르', re: /장르|genre/i },
+  { id: 'inst', title: '주요 악기', re: /악기|instrument/i },
+  { id: 'vocal', title: '보컬 스타일', re: /보컬|vocal/i },
+  { id: 'mood', title: '분위기', re: /분위기|mood/i }
+];
+// 영어/한국어 표기가 섞인 같은 태그를 합치기 위한 별칭표 (키는 normLabel 처리 후 형태)
+const ALIAS = {
+  '힙합':'hiphop','랩':'rap','알앤비':'r&b','rnb':'r&b','케이팝':'kpop','팝':'pop','록':'rock','락':'rock',
+  '재즈':'jazz','인디':'indie','발라드':'ballad','로파이':'lofi','하우스':'house','트랩':'trap','소울':'soul',
+  '펑크':'funk','포크':'folk','댄스':'dance','신스팝':'synthpop','앰비언트':'ambient','일렉트로닉':'electronic',
+  '어쿠스틱':'acoustic','오케스트라':'orchestral','클래식':'classical','메탈':'metal','블루스':'blues','레게':'reggae',
+  '기타':'guitar','어쿠스틱기타':'acousticguitar','일렉트릭기타':'electricguitar','피아노':'piano','드럼':'drums',
+  'drum':'drums','베이스':'bass','베이스기타':'bassguitar','신디사이저':'synthesizer','신스':'synthesizer','synth':'synthesizer',
+  'synths':'synthesizer','현악기':'strings','스트링':'strings','스트링스':'strings','바이올린':'violin','첼로':'cello',
+  '808베이스':'808bass','키보드':'keyboard','브라스':'brass','색소폰':'saxophone','보컬':'vocals'
+};
+const normLabel = (s) => {
+  const raw = String(s ?? '').toLowerCase();
+  let t = raw.replace(/\s*[\(\[（].*?[\)\]）]/g, '');
+  if (!t.trim()) t = raw;
+  t = t.replace(/[\s\-_·\/.,]+/g, '');
+  return ALIAS[t] || t;
+};
+const clampConf = (v) => Math.min(100, Math.max(0, Number(v) || 0));
+const median = (a) => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+function persist(d, key) {
+  store.set(key, d);
+  // 같은 곡이 다른 키(검색어 키 / ID 키)로도 저장돼 있으면 함께 갱신해서 값이 어긋나지 않게 한다
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k === key || !k.startsWith(LIB_PREFIX)) continue;
+      if (store.get(k)?.track?.trackId === d.track?.trackId) store.set(k, d);
+    }
+  } catch {}
+}
+
+// 저장된 곡을 곡 ID 기준으로 중복 없이 모은다
+function loadLib() {
+  const byId = new Map();
+  const rank = (x) => (x.ai ? 2 : 0) + (x.measured ? 1 : 0);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(LIB_PREFIX)) continue;
+      const d = store.get(k);
+      if (!d?.track?.trackId) continue;
+      const id = String(d.track.trackId);
+      const e = byId.get(id) || { id, keys: [], d: null, key: '' };
+      e.keys.push(k);
+      if (!e.d || rank(d) > rank(e.d) || (rank(d) === rank(e.d) && (d.savedAt || 0) > (e.d.savedAt || 0))) { e.d = d; e.key = k; }
+      byId.set(id, e);
+    }
+  } catch {}
+  return [...byId.values()].sort((a, b) => (b.d.savedAt || 0) - (a.d.savedAt || 0));
+}
+
+function aggregate(lib) {
+  const withAI = lib.filter((e) => Array.isArray(e.d.ai?.categories));
+  const maps = Object.fromEntries(CATS.map((c) => [c.id, new Map()]));
+  const moods = new Map();
+  for (const e of withAI) {
+    const seen = {};
+    for (const c of e.d.ai.categories) {
+      const def = CATS.find((x) => x.re.test(c.title || ''));
+      if (!def) continue;
+      const per = (seen[def.id] ||= new Map());
+      for (const it of c.items || []) {
+        const k = normLabel(it.label);
+        if (!k) continue;
+        const w = clampConf(it.conf) / 100;
+        const p = per.get(k);
+        if (!p || w > p.w) per.set(k, { w, label: String(it.label) });   // 한 곡 안에서 같은 태그는 한 번만 센다
+      }
+    }
+    for (const id in seen) for (const [k, p] of seen[id]) {
+      const a = maps[id].get(k) || { w: 0, n: 0, labels: new Map() };
+      a.w += p.w; a.n++; a.labels.set(p.label, (a.labels.get(p.label) || 0) + 1);
+      maps[id].set(k, a);
+    }
+    const mk = new Set();
+    for (const raw of e.d.ai.moodKeywords || []) {
+      const k = normLabel(raw);
+      if (!k || mk.has(k)) continue;
+      mk.add(k);
+      const a = moods.get(k) || { n: 0, labels: new Map() };
+      a.n++; a.labels.set(String(raw), (a.labels.get(String(raw)) || 0) + 1);
+      moods.set(k, a);
+    }
+  }
+  const topLabel = (labels) => [...labels.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  const cats = {};
+  for (const c of CATS) {
+    cats[c.id] = [...maps[c.id].values()]
+      .sort((a, b) => b.w - a.w || b.n - a.n).slice(0, 6)
+      .map((a) => ({ label: topLabel(a.labels), n: a.n, share: Math.round(a.w / withAI.length * 100) }));
+  }
+  const mood = [...moods.values()].sort((a, b) => b.n - a.n).slice(0, 20).map((a) => ({ label: topLabel(a.labels), n: a.n }));
+  return { nAI: withAI.length, cats, mood };
+}
+
+function renderStats(lib) {
+  const box = $('tasteStats');
+  if (lib.length < MIN_SONGS) {
+    box.innerHTML = `<section class="card"><h2>내 취향</h2><div>곡을 ${MIN_SONGS}곡 이상 분석하면 취향 통계가 표시됩니다.</div><div class="progress"><i style="width:${lib.length / MIN_SONGS * 100}%"></i></div><div class="muted">현재 ${lib.length}곡 / ${MIN_SONGS}곡</div></section>`;
+    return;
+  }
+  const A = aggregate(lib);
+  const bpms = lib.map((e) => e.d.bpm).filter(Boolean);
+  const keys = lib.map((e) => e.d.key).filter((k) => k && Number.isInteger(k.pc));
+  const camMap = new Map();
+  for (const k of keys) {
+    const c = camelot(k), a = camMap.get(c) || { n: 0, name: keyName(k) };
+    a.n++; camMap.set(c, a);
+  }
+  const camTop = [...camMap.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+  const minor = keys.filter((k) => k.minor).length, major = keys.length - minor;
+
+  const sum = `<section class="card"><h2>한눈에 보기</h2><div class="sum">
+    <div><div class="muted">분석한 곡</div><div class="v">${lib.length}곡</div></div>
+    <div><div class="muted">AI 분석이 있는 곡</div><div class="v">${A.nAI}곡</div></div>
+    <div><div class="muted">평균 BPM</div><div class="v">${bpms.length ? Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length) : '—'}</div></div>
+    <div><div class="muted">가장 많은 키</div><div class="v">${camTop[0] ? esc(camTop[0][0]) : '—'}</div>${camTop[0] ? `<div class="muted">${esc(camTop[0][1].name)}</div>` : ''}</div>
+  </div></section>`;
+
+  let tags;
+  if (!A.nAI) tags = `<section class="card"><h2>자주 나오는 사운드</h2><div class="muted">AI 분석이 저장된 곡이 없어 태그 통계를 만들 수 없습니다.</div></section>`;
+  else tags = `<section class="card"><h2>자주 나오는 사운드</h2>
+    <div class="muted" style="margin-bottom:10px">태그마다 AI 확신도를 곡별로 더해, AI 분석이 있는 ${A.nAI}곡 대비 비중으로 표시합니다.${A.nAI < lib.length ? ` AI 분석이 없는 ${lib.length - A.nAI}곡은 제외됩니다.` : ''} 영어·한국어 표기가 다른 같은 태그는 일부만 합쳐집니다.</div>
+    <div class="dna">${CATS.map((c) => `<div class="group"><h3>${esc(c.title)}</h3>${A.cats[c.id].length ? A.cats[c.id].map((r) =>
+      `<div class="tag"><div class="l"><span>${esc(r.label)}</span><span class="muted">${r.n}곡 · ${r.share}%</span></div><div class="bar"><i style="width:${r.share}%"></i></div></div>`).join('') : '<div class="muted">데이터가 없습니다.</div>'}</div>`).join('')}</div></section>`;
+
+  let hist = '<div class="muted">측정된 BPM이 없습니다.</div>';
+  if (bpms.length) {
+    const lo = Math.floor(Math.min(...bpms) / 10) * 10, hi = Math.floor(Math.max(...bpms) / 10) * 10;
+    const bins = [];
+    for (let s = lo; s <= hi; s += 10) bins.push({ s, n: bpms.filter((b) => b >= s && b < s + 10).length });
+    const mx = Math.max(...bins.map((b) => b.n));
+    hist = `<div class="hist">${bins.map((b, i) => `<div title="${b.s}–${b.s + 9} BPM: ${b.n}곡"><b>${b.n || ''}</b><i style="height:${Math.round(b.n / mx * 64)}px${b.n ? '' : ';opacity:.25'}"></i><span>${bins.length > 10 && i % 2 ? '' : b.s}</span></div>`).join('')}</div>
+      <div class="muted" style="margin-top:6px">중앙값 ${Math.round(median(bpms))} BPM · 범위 ${Math.min(...bpms)}–${Math.max(...bpms)} (${bpms.length}곡 측정)</div>`;
+  }
+  let keyHtml = '<div class="muted">측정된 키가 없습니다.</div>';
+  if (keys.length) {
+    keyHtml = `<div class="muted">Major ${major}곡 · Minor ${minor}곡</div>
+      <div class="split" aria-hidden="true"><i style="width:${major / keys.length * 100}%"></i><i style="width:${minor / keys.length * 100}%"></i></div>
+      <div class="muted" style="margin:10px 0 6px">자주 나오는 키 (Camelot)</div>
+      <div class="chips">${camTop.map(([c, a]) => `<span class="chip">${esc(c)} ${esc(a.name)} <span class="muted">×${a.n}</span></span>`).join('')}</div>`;
+  }
+  const tempoKey = `<section class="card"><h2>템포와 키 분포</h2><div class="two">
+    <div><div class="muted">BPM 분포 (10 BPM 단위)</div>${hist}</div>
+    <div><div class="muted">Major / Minor</div>${keyHtml}</div></div></section>`;
+
+  const mood = A.mood.length ? `<section class="card"><h2>분위기 키워드</h2><div class="chips" style="margin:0">${A.mood.map((m) =>
+    `<span class="chip">${esc(m.label)}${m.n > 1 ? ` <span class="muted">×${m.n}</span>` : ''}</span>`).join('')}</div></section>` : '';
+
+  box.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px">${sum}${tags}${tempoKey}${mood}</div>`;
+}
+
+function topGenre(d) {
+  const g = (d.ai?.categories || []).find((c) => CATS[0].re.test(c.title || ''));
+  const best = (g?.items || []).slice().sort((a, b) => clampConf(b.conf) - clampConf(a.conf))[0];
+  return best ? String(best.label) : (d.track?.primaryGenreName || '');
+}
+
+function renderLib(lib) {
+  $('libCount').textContent = lib.length ? `· ${lib.length}곡` : '';
+  $('libList').innerHTML = lib.length ? lib.map((e) => {
+    const d = e.d, t = d.track;
+    const meta = [d.bpm ? `${d.bpm} BPM` : '', d.key ? `${keyName(d.key)} (${camelot(d.key)})` : '', topGenre(d), d.savedAt ? new Date(d.savedAt).toLocaleDateString('ko-KR') : ''].filter(Boolean).join(' · ');
+    return `<div class="song">
+      <img src="${esc(t.artworkUrl60 || '')}" alt="" />
+      <div class="meta"><b>${esc(t.trackName)}</b><span class="muted">${esc(t.artistName)}</span><span class="muted">${esc(meta || '측정값 없음')}${d.ai ? '' : ' · AI 분석 없음'}</span></div>
+      <button type="button" class="small" data-act="open" data-key="${esc(e.key)}">열기</button>
+      <button type="button" class="small" data-act="del" data-id="${esc(e.id)}">삭제</button>
+    </div>`;
+  }).join('') : '<div class="muted">아직 분석한 곡이 없습니다. 곡을 분석하면 여기에 쌓입니다.</div>';
+}
+
+function renderTaste() { const lib = loadLib(); renderStats(lib); renderLib(lib); }
+
+function showView(v) {
+  $('analysisView').hidden = v !== 'analysis';
+  $('tasteView').hidden = v !== 'taste';
+  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+  if (v === 'taste') renderTaste();
+}
+document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => showView(b.dataset.view); });
+
+async function openSaved(key) {
+  showView('analysis');
+  window.scrollTo(0, 0);
+  const my = ++runSeq;
+  curKey = key;
+  $('info').textContent = '';
+  $('candBox').hidden = true;
+  try { if (!(await tryCache(my)) && my === runSeq) setStatus('저장된 분석을 찾지 못했습니다.'); }
+  catch (e) { if (my === runSeq) setStatus(`오류: ${e.message}`); }
+}
+
+function deleteSaved(id) {
+  const e = loadLib().find((x) => x.id === id);
+  if (!e || !confirm(`"${e.d.track.trackName}" 분석 결과를 삭제할까요?`)) return;
+  e.keys.forEach((k) => { try { localStorage.removeItem(k); } catch {} });
+  if (cur && String(cur.track?.trackId) === id) { cur = null; curKey = ''; }
+  renderTaste();
+}
+
+$('libList').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-act]'); if (!b) return;
+  if (b.dataset.act === 'open') openSaved(b.dataset.key);
+  else if (b.dataset.act === 'del') deleteSaved(b.dataset.id);
+});
+
+// ---------- 내보내기 / 불러오기 ----------
+const libMsg = (m) => { $('libMsg').textContent = m; };
+
+$('expBtn').onclick = () => {
+  const lib = loadLib();
+  if (!lib.length) { libMsg('내보낼 곡이 없습니다.'); return; }
+  const blob = new Blob([JSON.stringify({ app: 'sonic-lens', version: 1, exportedAt: new Date().toISOString(), items: lib.map((e) => e.d) })], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sonic-lens-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  libMsg(`${lib.length}곡을 내보냈습니다.`);
+};
+
+// 가져온 파일은 신뢰할 수 없으므로 필요한 필드만 골라 형식과 길이를 검증한다
+const sStr = (v, n = 300) => (typeof v === 'string' ? v.slice(0, n) : '');
+const sUrl = (v) => (typeof v === 'string' && /^https:\/\/([\w-]+\.)*(mzstatic\.com|apple\.com)\//i.test(v) ? v.slice(0, 500) : '');
+function sanitizeEntry(raw) {
+  const t = raw?.track;
+  if (!t || !Number.isFinite(Number(t.trackId)) || !sStr(t.trackName) || !sStr(t.artistName)) return null;
+  const track = {
+    trackId: Number(t.trackId), trackName: sStr(t.trackName), artistName: sStr(t.artistName),
+    collectionName: sStr(t.collectionName), primaryGenreName: sStr(t.primaryGenreName, 80), releaseDate: sStr(t.releaseDate, 30),
+    trackTimeMillis: Number(t.trackTimeMillis) || 0, artworkUrl60: sUrl(t.artworkUrl60), artworkUrl100: sUrl(t.artworkUrl100), previewUrl: sUrl(t.previewUrl)
+  };
+  const bpm = Number(raw.bpm) >= 40 && Number(raw.bpm) <= 220 ? Math.round(Number(raw.bpm)) : null;
+  const k = raw.key;
+  const key = k && Number.isInteger(k.pc) && k.pc >= 0 && k.pc < 12 ? { pc: k.pc, minor: Boolean(k.minor) } : null;
+  let ai = null;
+  if (Array.isArray(raw.ai?.categories) && raw.ai.categories.length) {
+    ai = {
+      categories: raw.ai.categories.slice(0, 8).map((c) => ({
+        title: sStr(c?.title, 60),
+        items: (Array.isArray(c?.items) ? c.items : []).slice(0, 10).map((i) => ({ label: sStr(i?.label, 80), conf: clampConf(i?.conf), note: sStr(i?.note, 300) }))
+      })),
+      moodKeywords: (Array.isArray(raw.ai.moodKeywords) ? raw.ai.moodKeywords : []).slice(0, 12).map((s) => sStr(s, 40)),
+      lyricsSummary: sStr(raw.ai.lyricsSummary, 1000)
+    };
+  }
+  if (!ai && !bpm && !key) return null;
+  return {
+    track, bpm, key, measured: Boolean(bpm || key), engine: sStr(raw.engine, 30), ai,
+    lyrics: sStr(raw.lyrics, 20000), lyricsFound: Boolean(raw.lyricsFound),
+    savedAt: Number.isFinite(Number(raw.savedAt)) ? Number(raw.savedAt) : undefined
+  };
+}
+
+$('impBtn').onclick = () => $('impFile').click();
+$('impFile').onchange = async (ev) => {
+  const f = ev.target.files[0]; ev.target.value = '';
+  if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    const items = Array.isArray(j) ? j : j?.items;
+    if (!Array.isArray(items)) throw new Error('Sonic Lens 내보내기 파일이 아닙니다.');
+    const have = new Set(loadLib().map((e) => e.id));
+    let added = 0, skipped = 0, bad = 0;
+    for (const raw of items.slice(0, 2000)) {
+      const d = sanitizeEntry(raw);
+      if (!d) { bad++; continue; }
+      const id = String(d.track.trackId);
+      if (have.has(id)) { skipped++; continue; }
+      store.set('sl4:id:' + id, d); have.add(id); added++;
+    }
+    libMsg(`${added}곡을 불러왔습니다.${skipped ? ` 이미 있는 ${skipped}곡은 건너뛰었습니다.` : ''}${bad ? ` 형식이 맞지 않는 ${bad}곡은 제외했습니다.` : ''}`);
+    renderTaste();
+  } catch (e) { libMsg(`불러오기 실패: ${e.message}`); }
+};
+
 setupVisualizer();
 </script>
 </body>
