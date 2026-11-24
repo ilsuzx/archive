@@ -531,7 +531,7 @@ async function run(raw) {
   $('info').textContent = '';
   try {
     const cached = store.get(curKey);
-    if (cached?.track) {
+    if (cached?.track && cached.ai) {
       setStatus('저장된 분석을 불러오는 중...');
       const buf = await (cached.track.previewUrl ? loadAudio(cached.track.previewUrl).catch(() => null) : null);
       render(cached, buf);
