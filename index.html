@@ -467,7 +467,7 @@ async function fetchLyrics(t) {
   return text ? { text, found: true } : { text: '가사를 찾지 못했습니다.', found: false };
 }
 
-async function analyzeAI(t, lyr, m) {
+async function analyzeAI(t, lyr, m, retried) {
   const r = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -480,6 +480,12 @@ async function analyzeAI(t, lyr, m) {
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     if (j.debug) console.warn('[AI 분석 실패]', j.code, j.debug);
+    // 서버 혼잡·일시 오류는 잠깐 뒤 자동으로 한 번 더 시도
+    if (!retried && j.retryable && j.code !== 'quota') {
+      setStatus('AI 서버가 혼잡해 다시 시도하는 중...');
+      await new Promise((ok) => setTimeout(ok, 2500));
+      return analyzeAI(t, lyr, m, true);
+    }
     throw new Error(j.error || `AI 분석 요청 실패 (HTTP ${r.status})`);
   }
   return r.json();
