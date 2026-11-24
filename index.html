@@ -1,712 +1,575 @@
 <!DOCTYPE html>
-<html lang="ko" class="dark">
+<html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SONIC LENS // AI Music Analyzer & Studio Bridge</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            bg: '#09090b',
-            surface: '#111115',
-            surface2: '#18181f',
-            border: '#27272f',
-            accent: '#8b5cf6',
-            accent2: '#06b6d4'
-          }
-        }
-      }
-    };
-  </script>
-  <style>
-    body {
-      background-color: #09090b;
-      color: #f4f4f5;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
-    }
-    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #27272f; border-radius: 9999px; }
-    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sonic Lens</title>
+<style>
+  :root { --bg:#fafaf9; --card:#fff; --fg:#1c1917; --mut:#78716c; --line:#e7e5e4; --ac:#4f46e5; --ac-fg:#fff; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#151413; --card:#1c1b1a; --fg:#e7e5e4; --mut:#a8a29e; --line:#2e2c2a; --ac:#818cf8; --ac-fg:#151413; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif; }
+  header { border-bottom:1px solid var(--line); background:var(--card); }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 16px; }
+  .top { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px 0; }
+  h1 { font-size:16px; margin:0; font-weight:700; }
+  form { flex:1; display:flex; gap:8px; min-width:260px; }
+  input[type=text] { flex:1; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; }
+  input[type=text]:focus-visible, button:focus-visible, summary:focus-visible { outline:2px solid var(--ac); outline-offset:1px; }
+  button { font:inherit; padding:7px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
+  button:hover { border-color:var(--mut); }
+  button.primary { background:var(--ac); color:var(--ac-fg); border-color:var(--ac); font-weight:600; }
+  button.small { padding:2px 8px; font-size:12px; }
+  .samples { display:flex; gap:6px; align-items:center; color:var(--mut); font-size:12px; }
+  .status { display:flex; justify-content:space-between; gap:12px; padding:8px 0; color:var(--mut); font-size:12px; border-top:1px solid var(--line); }
+  main { max-width:1080px; margin:0 auto; padding:16px; display:grid; grid-template-columns:minmax(0,5fr) minmax(0,7fr); gap:16px; }
+  @media (max-width:820px) { main { grid-template-columns:1fr; } }
+  .col { display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
+  h2 { font-size:13px; margin:0 0 10px; font-weight:700; }
+  .muted { color:var(--mut); font-size:12px; }
+  .track { display:flex; gap:12px; align-items:center; }
+  .track img { width:72px; height:72px; border-radius:6px; object-fit:cover; background:var(--line); }
+  .track div { min-width:0; }
+  .track b, .track span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  audio { width:100%; margin-top:12px; height:36px; }
+  canvas { width:100%; height:48px; display:block; margin-top:8px; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .stat .v { font-size:26px; font-weight:700; line-height:1.2; }
+  .stat .row { display:flex; gap:4px; margin-top:6px; }
+  .dna { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:560px) { .dna { grid-template-columns:1fr; } }
+  .group { border:1px solid var(--line); border-radius:6px; padding:12px; }
+  .group h3 { font-size:12px; margin:0 0 8px; }
+  .tag { margin-bottom:8px; }
+  .tag .l { display:flex; justify-content:space-between; gap:8px; }
+  .bar { height:3px; background:var(--line); border-radius:2px; margin:3px 0; }
+  .bar i { display:block; height:100%; background:var(--ac); border-radius:2px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .chip { border:1px solid var(--line); border-radius:999px; padding:1px 10px; font-size:12px; }
+  .range { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--mut); }
+  .range input { accent-color:var(--ac); }
+  details { margin-top:10px; }
+  summary { cursor:pointer; color:var(--mut); font-size:12px; }
+  pre { white-space:pre-wrap; max-height:220px; overflow:auto; font:inherit; font-size:12px; margin:8px 0 0; }
+  .prompt { font-family:ui-monospace,Menlo,monospace; font-size:12px; border:1px solid var(--line); border-radius:6px; padding:10px; margin-top:12px; user-select:all; }
+  .head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+  .btns { display:flex; gap:8px; }
+  .btns button { flex:1; }
+</style>
 </head>
-<body class="min-h-screen flex flex-col selection:bg-violet-500/30 selection:text-violet-200">
-
-  <!-- 상단 검색 헤더 -->
-  <header class="border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-30">
-    <div class="max-w-[1600px] mx-auto px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-3">
-      <div class="flex items-center gap-2.5 shrink-0">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-400 flex items-center justify-center font-bold text-black text-sm">
-          SL
-        </div>
-        <div>
-          <h1 class="text-sm font-bold tracking-wide flex items-center gap-2">
-            SONIC LENS
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30">FREE CLIENT ENGINE</span>
-          </h1>
-          <p class="text-[11px] text-zinc-400">장르 · BPM · 키 · 악기/보컬 · 가사 분석 & 스튜디오 브릿지</p>
-        </div>
-      </div>
-
-      <!-- 검색창 + 샘플 버튼 -->
-      <form id="searchForm" class="flex-1 flex flex-col sm:flex-row gap-2">
-        <input
-          id="searchInput"
-          type="text"
-          placeholder="노래 제목, 아티스트, 또는 YouTube / Apple Music / Spotify 링크 붙여넣기..."
-          class="flex-1 bg-surface2 border border-border focus:border-violet-500 rounded-lg px-3.5 py-2 text-sm outline-none transition"
-        />
-        <button
-          type="submit"
-          class="bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition shrink-0 cursor-pointer"
-        >
-          트랙 분석
-        </button>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>Sonic Lens</h1>
+      <form id="searchForm">
+        <input id="searchInput" type="text" placeholder="곡 제목과 아티스트, 또는 YouTube·Apple Music 링크" aria-label="곡 검색" />
+        <button class="primary" type="submit">분석</button>
       </form>
-
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 shrink-0">
-        <span class="text-[11px] text-zinc-500 mr-1">샘플:</span>
-        <button type="button" data-sample="Daft Punk Get Lucky" class="sample-btn text-xs px-2.5 py-1 rounded-md bg-surface2 hover:bg-zinc-800 border border-border transition cursor-pointer">Get Lucky</button>
-        <button type="button" data-sample="The Weeknd Blinding Lights" class="sample-btn text-xs px-2.5 py-1 rounded-md bg-surface2 hover:bg-zinc-800 border border-border transition cursor-pointer">Blinding Lights</button>
-        <button type="button" data-sample="NewJeans Ditto" class="sample-btn text-xs px-2.5 py-1 rounded-md bg-surface2 hover:bg-zinc-800 border border-border transition cursor-pointer">Ditto</button>
+      <div class="samples">
+        예시
+        <button type="button" class="small sample" data-q="Daft Punk Get Lucky">Get Lucky</button>
+        <button type="button" class="small sample" data-q="The Weeknd Blinding Lights">Blinding Lights</button>
+        <button type="button" class="small sample" data-q="NewJeans Ditto">Ditto</button>
       </div>
     </div>
+    <div class="status"><span id="statusText">곡 제목을 입력하세요.</span><span id="info"></span></div>
+  </div>
+</header>
 
-    <!-- 상태 바 -->
-    <div id="statusBar" class="border-t border-border/60 bg-bg/70 px-4 py-1.5 text-xs text-zinc-400 flex items-center justify-between max-w-[1600px] mx-auto">
-      <span id="statusText">대기 중 — 곡 제목을 입력하거나 샘플을 눌러보세요.</span>
-      <span id="cacheInfo" class="text-[11px] text-zinc-500"></span>
-    </div>
-  </header>
-
-  <!-- 메인 싱글 스크린 대시보드 -->
-  <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-
-    <!-- 좌측 컬럼 (3칸): 트랙 스펙, 오디오 플레이어, BPM & Key -->
-    <section class="lg:col-span-3 flex flex-col gap-4">
-      <div class="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
-        <div class="flex gap-3 items-center">
-          <img
-            id="coverImg"
-            src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=300&q=80"
-            alt="Album Art"
-            class="w-20 h-20 rounded-lg object-cover border border-border bg-surface2 shrink-0"
-          />
-          <div class="min-w-0">
-            <div id="trackTitle" class="font-bold text-base truncate">트랙을 선택하세요</div>
-            <div id="trackArtist" class="text-xs text-zinc-400 truncate mt-0.5">아티스트 정보</div>
-            <div id="trackAlbum" class="text-[11px] text-zinc-500 truncate mt-0.5">앨범 · 발매연도</div>
-          </div>
-        </div>
-
-        <!-- 30초 미리듣기 오디오 -->
-        <audio id="audioPlayer" crossorigin="anonymous" controls class="w-full h-9 rounded"></audio>
-
-        <!-- 실시간 스펙트럼 캔버스 -->
-        <div class="bg-bg border border-border rounded-lg p-2">
-          <div class="flex justify-between text-[10px] text-zinc-500 mb-1">
-            <span>REAL-TIME FFT SPECTRUM</span>
-            <span id="audioModeLabel">30s Preview</span>
-          </div>
-          <canvas id="spectrumCanvas" class="w-full h-16 block rounded"></canvas>
-        </div>
-      </div>
-
-      <!-- BPM & Key 카드 (DJ & 프로듀서용) -->
-      <div class="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Tempo & Key</span>
-          <span class="text-[11px] text-cyan-400">DJ / Producer Spec</span>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2.5">
-          <div class="bg-surface2 border border-border rounded-lg p-3">
-            <div class="text-[11px] text-zinc-400">TEMPO (BPM)</div>
-            <div class="flex items-baseline gap-1 mt-1">
-              <span id="bpmValue" class="text-2xl font-extrabold text-white">120</span>
-              <span class="text-xs text-zinc-400">BPM</span>
-            </div>
-            <div class="flex gap-1 mt-2">
-              <button id="halfBpmBtn" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-bg hover:bg-zinc-800 border border-border cursor-pointer">÷2</button>
-              <button id="doubleBpmBtn" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-bg hover:bg-zinc-800 border border-border cursor-pointer">×2</button>
-              <button id="tapBpmBtn" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/40 cursor-pointer ml-auto">TAP</button>
-            </div>
-          </div>
-
-          <div class="bg-surface2 border border-border rounded-lg p-3">
-            <div class="text-[11px] text-zinc-400">MUSICAL KEY</div>
-            <div id="keyValue" class="text-xl font-extrabold text-cyan-300 mt-1">C Minor</div>
-            <div id="camelotValue" class="text-xs text-zinc-400 mt-0.5">Camelot: 5A</div>
-            <div class="text-[10px] text-zinc-500 mt-1">조화 믹싱 호환: <span id="compatKeys" class="text-zinc-300">5B, 4A, 6A</span></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 중앙 컬럼 (5칸): 장르, 악기, 보컬, 분위기 + 신뢰도 점수 -->
-    <section class="lg:col-span-5 bg-surface border border-border rounded-xl p-4 flex flex-col gap-4">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+<main>
+  <div class="col">
+    <section class="card">
+      <div class="track">
+        <img id="cover" alt="앨범 커버" />
         <div>
-          <h2 class="text-sm font-bold">사운드 DNA & 신뢰도 스코어</h2>
-          <p class="text-xs text-zinc-400">트랙 전체 요소를 태그화하고 신뢰도 점수로 표시합니다.</p>
-        </div>
-        <div class="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-2.5 py-1.5">
-          <span class="text-[11px] text-zinc-400">최소 신뢰도</span>
-          <input id="confThreshold" type="range" min="0" max="90" step="5" value="0" class="w-20 accent-violet-500 cursor-pointer" />
-          <span id="confThresholdVal" class="text-xs font-mono text-violet-300 w-8 text-right">0%</span>
+          <b id="title">곡을 검색하세요</b>
+          <span id="artist" class="muted"></span>
+          <span id="album" class="muted"></span>
         </div>
       </div>
-
-      <div id="dnaContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto custom-scroll pr-0.5">
-        <!-- JS로 렌더링 -->
-      </div>
+      <audio id="player" controls></audio>
+      <canvas id="spectrum" aria-hidden="true"></canvas>
     </section>
 
-    <!-- 우측 컬럼 (4칸): 가사 분석 + 크리에이티브 스튜디오 브릿지 -->
-    <section class="lg:col-span-4 flex flex-col gap-4">
-
-      <!-- 가사 분석 카드 -->
-      <div class="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2.5 flex-1 min-h-[240px]">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-bold">가사 & 정서 분석</h2>
-          <span id="lyricsSourceBadge" class="text-[11px] px-2 py-0.5 rounded bg-surface2 text-zinc-400 border border-border">LRCLIB</span>
-        </div>
-
-        <div id="moodTags" class="flex flex-wrap gap-1.5"></div>
-
-        <p id="lyricsSummary" class="text-xs text-zinc-300 bg-surface2/80 border border-border rounded-lg p-2.5 leading-relaxed">
-          곡을 검색하면 가사 정서 요약과 원문/동기화 가사가 표시됩니다.
-        </p>
-
-        <pre id="lyricsBox" class="flex-1 bg-bg border border-border rounded-lg p-3 text-xs text-zinc-300 whitespace-pre-wrap overflow-y-auto custom-scroll max-h-48 leading-relaxed">가사 대기 중...</pre>
-      </div>
-
-      <!-- 창작 도구 브릿지 (코드 진행 연주 + MIDI 다운로드 + AI 프롬프트 복사) -->
-      <div class="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-sm font-bold text-cyan-300">같은 스타일로 새 곡 만들기</h2>
-            <p class="text-[11px] text-zinc-400">분석된 Key & BPM 기반 코드 진행 연주·MIDI 저장·프롬프트 복사</p>
+    <section class="card">
+      <h2>템포와 키 <span class="muted" id="measureNote"></span></h2>
+      <div class="stats">
+        <div class="stat">
+          <div class="muted">BPM</div>
+          <div class="v" id="bpm">—</div>
+          <div class="row">
+            <button class="small" id="half" type="button">÷2</button>
+            <button class="small" id="double" type="button">×2</button>
+            <button class="small" id="tap" type="button">탭</button>
           </div>
         </div>
-
-        <div class="flex flex-wrap gap-2">
-          <button id="playChordBtn" type="button" class="flex-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 text-xs font-medium py-2 px-3 rounded-lg transition cursor-pointer">
-            ▶ 코드 진행 재생
-          </button>
-          <button id="downloadMidiBtn" type="button" class="flex-1 bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 text-xs font-medium py-2 px-3 rounded-lg transition cursor-pointer">
-            ⬇ .MID 파일 다운로드
-          </button>
-        </div>
-
-        <div class="bg-bg border border-border rounded-lg p-2.5">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-[11px] text-zinc-400">생성형 음악 툴용 스타일 프롬프트</span>
-            <button id="copyPromptBtn" type="button" class="text-[11px] text-violet-300 hover:text-violet-200 underline cursor-pointer">복사</button>
-          </div>
-          <p id="stylePromptText" class="text-xs text-zinc-200 font-mono leading-relaxed select-all">
-            120 BPM, C Minor, energetic synth pop, groovy bassline, crisp drums, bright night mood
-          </p>
+        <div class="stat">
+          <div class="muted">키</div>
+          <div class="v" id="key">—</div>
+          <div class="muted" id="camelot"></div>
+          <div class="muted" id="compat"></div>
         </div>
       </div>
     </section>
 
-  </main>
+    <section class="card">
+      <h2>같은 스타일로 만들기</h2>
+      <div class="btns">
+        <button id="playChords" type="button">코드 진행 재생</button>
+        <button id="downloadMidi" type="button">MIDI 저장</button>
+      </div>
+      <div class="muted" id="progLabel" style="margin-top:8px"></div>
+      <div class="head" style="margin:12px 0 0">
+        <span class="muted">음악 생성 툴용 프롬프트</span>
+        <button class="small" id="copyPrompt" type="button">복사</button>
+      </div>
+      <div class="prompt" id="prompt">—</div>
+    </section>
+  </div>
 
-  <script>
-    // --- 음악 이론 & Camelot 매핑 ---
-    const KEY_PROFILES = [
-      { name: 'C Major', camelot: '8B', compat: '8A, 7B, 9B', rootMidi: 60, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 4, 5, 3] },
-      { name: 'A Minor', camelot: '8A', compat: '8B, 7A, 9A', rootMidi: 57, scale: [0, 2, 3, 5, 7, 8, 10], prog: [0, 5, 3, 4] },
-      { name: 'F# Minor', camelot: '11A', compat: '11B, 10A, 12A', rootMidi: 54, scale: [0, 2, 3, 5, 7, 8, 10], prog: [0, 3, 5, 4] },
-      { name: 'F Minor', camelot: '4A', compat: '4B, 3A, 5A', rootMidi: 53, scale: [0, 2, 3, 5, 7, 8, 10], prog: [0, 5, 3, 4] },
-      { name: 'G Major', camelot: '9B', compat: '9A, 8B, 10B', rootMidi: 55, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 4, 5, 3] },
-      { name: 'E Minor', camelot: '9A', compat: '9B, 8A, 10A', rootMidi: 52, scale: [0, 2, 3, 5, 7, 8, 10], prog: [0, 5, 3, 4] },
-      { name: 'D Minor', camelot: '7A', compat: '7B, 6A, 8A', rootMidi: 50, scale: [0, 2, 3, 5, 7, 8, 10], prog: [0, 3, 4, 0] },
-      { name: 'Bb Major', camelot: '6B', compat: '6A, 5B, 7B', rootMidi: 58, scale: [0, 2, 4, 5, 7, 9, 11], prog: [0, 4, 5, 3] }
-    ];
+  <div class="col">
+    <section class="card">
+      <div class="head">
+        <h2 style="margin:0">사운드 분석</h2>
+        <label class="range">최소 확신도
+          <input id="thr" type="range" min="0" max="90" step="5" value="0" />
+          <span id="thrVal">0%</span>
+        </label>
+      </div>
+      <div class="muted" style="margin-bottom:10px">확신도는 AI가 스스로 추정한 값이며 정확도를 보증하지 않습니다.</div>
+      <div id="dna" class="dna"></div>
+    </section>
 
-    let currentAnalysis = null;
-    let tapTimes = [];
-    let audioCtx = null;
-    let analyser = null;
-    let isAudioSourceConnected = false;
+    <section class="card">
+      <h2>가사와 분위기</h2>
+      <div id="chips" class="chips"></div>
+      <div id="summary" class="muted">곡을 분석하면 요약이 표시됩니다.</div>
+      <details><summary>가사 보기</summary><pre id="lyrics"></pre></details>
+    </section>
+  </div>
+</main>
 
-    const $ = (id) => document.getElementById(id);
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const MAJOR = [0,2,4,5,7,9,11], MINOR = [0,2,3,5,7,8,10];
+const KS_MAJ = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+const KS_MIN = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
 
-    function hashString(str) {
-      let h = 2166136261;
-      for (let i = 0; i < str.length; i++) {
-        h ^= str.charCodeAt(i);
-        h = Math.imul(h, 16777619);
+let cur = null, curKey = '', tapTimes = [];
+let audioCtx = null, analyser = null, connected = false, blobUrl = null, chordNodes = [];
+
+const setStatus = (m) => { $('statusText').textContent = m; };
+const keyName = (k) => k ? `${NOTES[k.pc]} ${k.minor ? 'Minor' : 'Major'}` : '—';
+
+// ---------- 음악 이론 ----------
+function camelot(k) {
+  const major = k.minor ? (k.pc + 3) % 12 : k.pc;
+  return `${(((major * 7) % 12) + 7) % 12 + 1}${k.minor ? 'A' : 'B'}`;
+}
+function compat(k) {
+  const c = camelot(k), n = parseInt(c), L = c.slice(-1), o = L === 'A' ? 'B' : 'A';
+  const w = (x) => ((x + 11) % 12) + 1;
+  return [`${n}${o}`, `${w(n - 1)}${L}`, `${w(n + 1)}${L}`].join(', ');
+}
+function chordsFor(k) {
+  const scale = k.minor ? MINOR : MAJOR;
+  const root = 48 + k.pc;
+  const note = (i) => root + scale[i % 7] + 12 * Math.floor(i / 7);
+  const prog = k.minor ? [0, 5, 2, 6] : [0, 4, 5, 3];
+  return prog.map((d) => [note(d), note(d + 2), note(d + 4)]);
+}
+function progLabel(k) {
+  const m = k.minor ? ['i','VI','III','VII'] : ['I','V','vi','IV'];
+  return m.join(' – ');
+}
+
+// ---------- 오디오 분석 (BPM / 키) ----------
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let b = n >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const u = i + k, v = u + len / 2;
+        const tr = re[v] * cr - im[v] * ci, ti = re[v] * ci + im[v] * cr;
+        re[v] = re[u] - tr; im[v] = im[u] - ti; re[u] += tr; im[u] += ti;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
       }
-      return h >>> 0;
     }
+  }
+}
 
-    function setStatus(msg) {
-      $('statusText').textContent = msg;
+function detectBpm(x, sr) {
+  const hop = 256, win = 512, frames = Math.floor((x.length - win) / hop);
+  if (frames < 200) return null;
+  const env = new Float32Array(frames);
+  for (let f = 0; f < frames; f++) {
+    let s = 0;
+    for (let i = 0; i < win; i++) { const v = x[f * hop + i]; s += v * v; }
+    env[f] = Math.sqrt(s / win);
+  }
+  const o = new Float32Array(frames);
+  let mean = 0;
+  for (let i = 1; i < frames; i++) { o[i] = Math.max(0, env[i] - env[i - 1]); mean += o[i]; }
+  mean /= frames;
+  for (let i = 0; i < frames; i++) o[i] -= mean;
+
+  const fps = sr / hop;
+  const ac = (lag) => {
+    const l = Math.floor(lag), fr = lag - l;
+    let s = 0;
+    for (let i = 0; i + l + 1 < frames; i++) s += o[i] * (o[i + l] * (1 - fr) + o[i + l + 1] * fr);
+    return s / (frames - l);
+  };
+  let best = -Infinity, bpm = null;
+  for (let b = 70; b <= 180; b += 0.5) {
+    const lag = fps * 60 / b;
+    const prior = Math.exp(-0.5 * Math.pow(Math.log2(b / 120) / 0.7, 2));
+    const s = (ac(lag) + 0.5 * ac(lag * 2)) * prior;
+    if (s > best) { best = s; bpm = b; }
+  }
+  return bpm ? Math.round(bpm) : null;
+}
+
+function detectKey(x, sr) {
+  const N = 8192, hop = 8192;
+  const re = new Float32Array(N), im = new Float32Array(N), chroma = new Float64Array(12);
+  const hann = new Float32Array(N);
+  for (let i = 0; i < N; i++) hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  const lo = Math.ceil(65 * N / sr), hi = Math.floor(2000 * N / sr);
+  const pcOf = new Int8Array(hi + 1);
+  for (let k = lo; k <= hi; k++) {
+    const midi = Math.round(69 + 12 * Math.log2((k * sr / N) / 440));
+    pcOf[k] = ((midi % 12) + 12) % 12;
+  }
+  let used = 0;
+  for (let p = 0; p + N <= x.length; p += hop) {
+    let e = 0;
+    for (let i = 0; i < N; i++) { const v = x[p + i]; re[i] = v * hann[i]; im[i] = 0; e += v * v; }
+    if (e / N < 1e-6) continue;
+    fft(re, im);
+    for (let k = lo; k <= hi; k++) chroma[pcOf[k]] += Math.sqrt(Math.hypot(re[k], im[k]));
+    used++;
+  }
+  if (!used) return null;
+  const corr = (a, b) => {
+    const ma = a.reduce((s, v) => s + v, 0) / 12, mb = b.reduce((s, v) => s + v, 0) / 12;
+    let n = 0, da = 0, db = 0;
+    for (let i = 0; i < 12; i++) { n += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; }
+    return n / Math.sqrt(da * db || 1);
+  };
+  let best = { pc: 0, minor: false, r: -2 };
+  for (let pc = 0; pc < 12; pc++) {
+    const rot = Array.from({ length: 12 }, (_, i) => chroma[(i + pc) % 12]);
+    const rM = corr(rot, KS_MAJ), rm = corr(rot, KS_MIN);
+    if (rM > best.r) best = { pc, minor: false, r: rM };
+    if (rm > best.r) best = { pc, minor: true, r: rm };
+  }
+  return { pc: best.pc, minor: best.minor };
+}
+
+async function analyzeAudio(buf) {
+  const ac = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 22050 });
+  try {
+    const ab = await ac.decodeAudioData(buf.slice(0));
+    const x = new Float32Array(ab.length);
+    for (let c = 0; c < ab.numberOfChannels; c++) {
+      const d = ab.getChannelData(c);
+      for (let i = 0; i < x.length; i++) x[i] += d[i] / ab.numberOfChannels;
     }
+    return { bpm: detectBpm(x, ab.sampleRate), key: detectKey(x, ab.sampleRate) };
+  } finally { ac.close(); }
+}
 
-    // --- YouTube / Spotify / Apple Music URL에서 검색어 추출 ---
-    function extractQueryFromInput(raw) {
-      const trimmed = raw.trim();
-      if (/^https?:\/\//i.test(trimmed)) {
-        try {
-          const url = new URL(trimmed);
-          const titleParam = url.searchParams.get('title') || url.searchParams.get('q');
-          if (titleParam) return titleParam;
-          const parts = url.pathname.split('/').filter(Boolean);
-          const clean = parts
-            .filter(p => !['track', 'album', 'song', 'watch', 'v', 'intl-kr', 'kr', 'us'].includes(p.toLowerCase()))
-            .join(' ')
-            .replace(/[-_+]/g, ' ');
-          return clean || trimmed;
-        } catch {
-          return trimmed;
-        }
-      }
-      return trimmed;
+async function loadAudio(url) {
+  let res;
+  try { res = await fetch(url); if (!res.ok) throw 0; }
+  catch { res = await fetch('/api/preview?url=' + encodeURIComponent(url)); }
+  if (!res.ok) throw new Error('미리듣기 오디오를 가져오지 못했습니다.');
+  return res.arrayBuffer();
+}
+
+// ---------- 외부 데이터 ----------
+async function resolveInput(raw) {
+  const t = raw.trim();
+  if (!/^https?:\/\//i.test(t)) return t;
+  try {
+    const u = new URL(t);
+    if (/youtu\.?be/.test(u.hostname)) {
+      const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(t));
+      if (r.ok) return (await r.json()).title.replace(/\(.*?\)|\[.*?\]|official|video|m\/?v/gi, '').trim();
     }
+    const skip = /^(track|album|song|watch|intl-kr|kr|us|jp)$/i;
+    return decodeURIComponent(u.pathname.split('/').filter((p) => p && !skip.test(p) && !/^\d+$/.test(p) && !/^[A-Za-z0-9]{22}$/.test(p)).join(' ')).replace(/[-_+]/g, ' ').trim();
+  } catch { return ''; }
+}
 
-    // --- iTunes Search API 호출 ---
-    async function searchTrack(query) {
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=1`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('곡 검색 API 응답 오류');
-      const data = await res.json();
-      return data.results && data.results[0] ? data.results[0] : null;
+async function searchTrack(q) {
+  const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=1`);
+  if (!r.ok) throw new Error('곡 검색에 실패했습니다.');
+  return (await r.json()).results?.[0] || null;
+}
+
+async function fetchLyrics(t) {
+  const clean = (s) => (s || '').replace(/\[\d{2}:\d{2}(?:\.\d{1,3})?\]\s*/g, '').trim();
+  try {
+    let r = await fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(t.trackName)}&artist_name=${encodeURIComponent(t.artistName)}`);
+    let d = r.ok ? await r.json() : null;
+    if (!d) {
+      r = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(t.trackName + ' ' + t.artistName)}`);
+      d = r.ok ? (await r.json())[0] : null;
     }
+    const text = clean(d?.plainLyrics || d?.syncedLyrics);
+    return text ? { text, found: true } : { text: '가사를 찾지 못했습니다.', found: false };
+  } catch { return { text: '가사를 불러오지 못했습니다.', found: false }; }
+}
 
-    // --- LRCLIB 가사 조회 ---
-    async function fetchLyrics(title, artist) {
-      try {
-        const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('not found');
-        const data = await res.json();
-        const raw = data.plainLyrics || data.syncedLyrics || '';
-        const cleaned = raw.replace(/\[\d{2}:\d{2}(?:\.\d{1,3})?\]\s*/g, '').trim();
-        return { text: cleaned || '가사 데이터를 찾지 못했습니다.', found: Boolean(cleaned) };
-      } catch {
-        return { text: '등록된 가사가 없거나 네트워크 제한으로 가사를 불러오지 못했습니다.', found: false };
-      }
+async function analyzeAI(t, lyr, m) {
+  const r = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      trackName: t.trackName, artistName: t.artistName, albumName: t.collectionName,
+      genreHint: t.primaryGenreName, lyrics: lyr.found ? lyr.text : '',
+      bpm: m?.bpm || null, keyName: m?.key ? keyName(m.key) : null
+    })
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+  return r.json();
+}
+
+// ---------- 렌더링 ----------
+function save() { if (cur && curKey) store.set(curKey, cur); }
+
+function render(d, buf) {
+  cur = d;
+  const t = d.track;
+  $('cover').src = (t.artworkUrl100 || '').replace('100x100bb', '400x400bb');
+  $('title').textContent = t.trackName;
+  $('artist').textContent = t.artistName;
+  $('album').textContent = `${t.collectionName || 'Single'} · ${(t.releaseDate || '').slice(0, 4)}`;
+
+  const p = $('player');
+  if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+  if (buf) { blobUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/mp4' })); p.src = blobUrl; }
+  else if (t.previewUrl) p.src = t.previewUrl;
+  else p.removeAttribute('src');
+
+  renderTempoKey();
+  $('measureNote').textContent = d.measured ? '· 미리듣기 30초에서 측정' : '· 측정하지 못했습니다';
+  $('prompt').textContent = d.ai?.stylePrompt || [d.bpm && `${d.bpm} BPM`, d.key && keyName(d.key), t.primaryGenreName].filter(Boolean).join(', ');
+  $('chips').innerHTML = (d.ai?.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
+  $('summary').textContent = d.ai?.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
+  $('lyrics').textContent = d.lyrics;
+  renderDna();
+}
+
+function renderTempoKey() {
+  $('bpm').textContent = cur.bpm || '—';
+  $('key').textContent = keyName(cur.key);
+  $('camelot').textContent = cur.key ? `Camelot ${camelot(cur.key)}` : '';
+  $('compat').textContent = cur.key ? `어울리는 키 ${compat(cur.key)}` : '';
+  $('progLabel').textContent = cur.key ? `코드 진행 ${progLabel(cur.key)}` : '키를 측정하지 못해 코드 진행을 만들 수 없습니다.';
+}
+
+function renderDna() {
+  const thr = Number($('thr').value);
+  $('thrVal').textContent = thr + '%';
+  const cats = cur?.ai?.categories;
+  if (!cats) {
+    $('dna').innerHTML = `<div class="muted">AI 분석을 사용할 수 없습니다. 장르: ${esc(cur?.track.primaryGenreName || '알 수 없음')}</div>`;
+    return;
+  }
+  $('dna').innerHTML = cats.map((c) => {
+    const items = (c.items || []).filter((i) => Number(i.conf) >= thr);
+    return `<div class="group"><h3>${esc(c.title)}</h3>${items.length ? items.map((i) => {
+      const v = Math.min(100, Math.max(0, Number(i.conf) || 0));
+      return `<div class="tag"><div class="l"><span>${esc(i.label)}</span><span class="muted">${v}%</span></div><div class="bar"><i style="width:${v}%"></i></div><div class="muted">${esc(i.note)}</div></div>`;
+    }).join('') : '<div class="muted">조건에 맞는 항목이 없습니다.</div>'}</div>`;
+  }).join('');
+}
+
+// ---------- 스펙트럼 ----------
+function setupVisualizer() {
+  const p = $('player'), cv = $('spectrum'), g = cv.getContext('2d');
+  const fit = () => {
+    const r = devicePixelRatio || 1;
+    cv.width = cv.clientWidth * r; cv.height = cv.clientHeight * r;
+  };
+  new ResizeObserver(fit).observe(cv); fit();
+
+  p.addEventListener('play', () => {
+    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!connected && blobUrl) {
+      const src = audioCtx.createMediaElementSource(p);
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 128;
+      src.connect(analyser); analyser.connect(audioCtx.destination);
+      connected = true;
     }
+  });
 
-    // --- 트랙 특성 & 신뢰도 점수 생성 ---
-    function buildAnalysis(track, lyricsObj) {
-      const seedKey = `${track.trackName}__${track.artistName}`;
-      const h = hashString(seedKey);
-      const genreHint = (track.primaryGenreName || 'Pop').toLowerCase();
-
-      let baseBpm = 92 + (h % 58); // 92 ~ 149 BPM
-      if (genreHint.includes('dance') || genreHint.includes('electronic')) baseBpm = 122 + (h % 14);
-      if (genreHint.includes('hip-hop') || genreHint.includes('r&b')) baseBpm = 84 + (h % 22);
-
-      const keyProfile = KEY_PROFILES[h % KEY_PROFILES.length];
-      const score = (offset, min = 62, max = 97) => {
-        const val = min + ((h + offset * 7919) % (max - min + 1));
-        return Math.min(99, Math.max(50, val));
-      };
-
-      const categories = [
-        {
-          title: '장르 & 세부 장르',
-          color: 'from-violet-500 to-fuchsia-500',
-          items: [
-            { label: track.primaryGenreName || 'Pop', conf: score(1, 82, 98), note: '메인 장르 시그널' },
-            { label: h % 2 === 0 ? 'Synth / Modern Prod.' : ' Indie / Groove', conf: score(2, 70, 91), note: '편곡 질감 매칭' },
-            { label: h % 3 === 0 ? 'Nu-Disco / Electro' : 'Alternative / Chill', conf: score(3, 58, 84), note: '세부 스타일 유사도' }
-          ]
-        },
-        {
-          title: '주요 악기 구성',
-          color: 'from-cyan-400 to-blue-500',
-          items: [
-            { label: 'Analog Synth & Pads', conf: score(4, 72, 95), note: '화성·공간감 주축' },
-            { label: 'Groove Bassline', conf: score(5, 75, 96), note: '저역 펀치 & 리듬 연결' },
-            { label: 'Crisp Drum Kit / Perc', conf: score(6, 70, 93), note: '트랜지언트 어택' },
-            { label: 'Clean Guitar / Keys', conf: score(7, 55, 85), note: '레이어 포인트' }
-          ]
-        },
-        {
-          title: '보컬 스타일',
-          color: 'from-emerald-400 to-teal-500',
-          items: [
-            { label: h % 2 === 0 ? 'Smooth & Melodic Lead' : 'Airy & Dynamic Vocal', conf: score(8, 74, 95), note: '메인 라인 질감' },
-            { label: 'Layered Harmonies', conf: score(9, 64, 89), note: '후렴 두께감' },
-            { label: 'Reverb & Delay Tail', conf: score(10, 60, 86), note: '공간 이펙트 비중' }
-          ]
-        },
-        {
-          title: '사운드 분위기(Mood)',
-          color: 'from-amber-400 to-orange-500',
-          items: [
-            { label: h % 2 === 0 ? 'Nostalgic & Driving' : 'Midnight & Moody', conf: score(11, 76, 97), note: '핵심 정서 태그' },
-            { label: 'Uplifting Hook', conf: score(12, 65, 90), note: '에너지 곡선' },
-            { label: 'Clean Mix Polish', conf: score(13, 70, 92), note: '사운드 밸런스' }
-          ]
-        }
-      ];
-
-      // 가사 기반 정서 키워드 추출
-      const text = lyricsObj.text.toLowerCase();
-      const moodKeywords = [];
-      if (/love|heart|miss|night|dream|light|feel|tonight/.test(text)) moodKeywords.push('감정·밤·동경');
-      if (/dance|move|high|fire|shine|go|run/.test(text)) moodKeywords.push('역동적·에너지');
-      if (/sad|alone|cry|fade|cold|rain/.test(text)) moodKeywords.push('서정적·회상');
-      if (moodKeywords.length === 0) moodKeywords.push('트랙 무드 기반 분석');
-
-      const lines = lyricsObj.text.split('\n').map(l => l.trim()).filter(Boolean);
-      const summary = lyricsObj.found
-        ? `총 ${lines.length}줄의 가사가 감지되었습니다. ${moodKeywords.join(', ')} 톤이 두드러지며, ${keyProfile.name} 조성과 ${baseBpm} BPM 템포가 후렴의 몰입감을 끌어올립니다.`
-        : `가사 텍스트가 제공되지 않아 ${track.primaryGenreName || 'Pop'} 장르 및 ${keyProfile.name}(${baseBpm} BPM) 사운드 프로파일 기준으로 분위기를 추정했습니다.`;
-
-      const topGenre = categories[0].items[0].label;
-      const topInst = categories[1].items[0].label;
-      const topMood = categories[3].items[0].label;
-      const prompt = `${baseBpm} BPM, ${keyProfile.name}, ${topGenre}, ${topInst}, ${topMood}, crisp mastering, studio quality`;
-
-      return {
-        track,
-        bpm: baseBpm,
-        keyProfile,
-        categories,
-        moodKeywords,
-        summary,
-        lyrics: lyricsObj.text,
-        lyricsFound: lyricsObj.found,
-        prompt
-      };
+  const color = () => getComputedStyle(document.documentElement).getPropertyValue('--ac').trim();
+  (function draw() {
+    requestAnimationFrame(draw);
+    const w = cv.width, h = cv.height, bars = 40, bw = w / bars;
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = color();
+    const live = analyser && !p.paused;
+    const arr = live ? new Uint8Array(analyser.frequencyBinCount) : null;
+    if (live) analyser.getByteFrequencyData(arr);
+    g.globalAlpha = live ? 1 : 0.25;
+    for (let i = 0; i < bars; i++) {
+      const v = live ? arr[Math.floor(i * arr.length / bars)] / 255 : 0;
+      const bh = Math.max(2, v * h);
+      g.fillRect(i * bw + 1, h - bh, Math.max(1, bw - 2), bh);
     }
+    g.globalAlpha = 1;
+  })();
+}
 
-    // --- UI 렌더링 ---
-    function renderAnalysis(data) {
-      currentAnalysis = data;
-      const { track, bpm, keyProfile, categories, moodKeywords, summary, lyrics, lyricsFound, prompt } = data;
+// ---------- 코드 재생 / MIDI ----------
+function stopChords() { chordNodes.forEach((o) => { try { o.stop(); } catch {} }); chordNodes = []; }
 
-      $('coverImg').src = (track.artworkUrl100 || '').replace('100x100bb', '400x400bb') || $('coverImg').src;
-      $('trackTitle').textContent = track.trackName;
-      $('trackArtist').textContent = track.artistName;
-      $('trackAlbum').textContent = `${track.collectionName || 'Single'} · ${(track.releaseDate || '').slice(0, 4)}`;
-
-      const player = $('audioPlayer');
-      if (track.previewUrl) {
-        player.src = track.previewUrl;
-        $('audioModeLabel').textContent = '30s Preview Ready';
-      } else {
-        player.removeAttribute('src');
-        $('audioModeLabel').textContent = 'No Preview URL';
-      }
-
-      $('bpmValue').textContent = bpm;
-      $('keyValue').textContent = keyProfile.name;
-      $('camelotValue').textContent = `Camelot: ${keyProfile.camelot}`;
-      $('compatKeys').textContent = keyProfile.compat;
-
-      $('lyricsSourceBadge').textContent = lyricsFound ? 'LRCLIB Matched' : 'Fallback Mode';
-      $('moodTags').innerHTML = moodKeywords
-        .map(tag => `<span class="text-[11px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/30"># ${tag}</span>`)
-        .join('');
-      $('lyricsSummary').textContent = summary;
-      $('lyricsBox').textContent = lyrics;
-      $('stylePromptText').textContent = prompt;
-
-      renderDnaCards();
-    }
-
-    function renderDnaCards() {
-      if (!currentAnalysis) return;
-      const threshold = Number($('confThreshold').value || 0);
-      $('confThresholdVal').textContent = `${threshold}%`;
-
-      $('dnaContainer').innerHTML = currentAnalysis.categories.map(cat => {
-        const filtered = cat.items.filter(item => item.conf >= threshold);
-        return `
-          <div class="bg-surface2/70 border border-border rounded-xl p-3 flex flex-col gap-2.5">
-            <div class="text-xs font-bold text-zinc-200">${cat.title}</div>
-            ${filtered.length === 0
-              ? `<div class="text-xs text-zinc-500 py-2">선택한 신뢰도(${threshold}%) 이상 항목 없음</div>`
-              : filtered.map(item => `
-                <div class="flex flex-col gap-1">
-                  <div class="flex items-center justify-between text-xs gap-2">
-                    <span class="font-medium text-zinc-100 truncate">${item.label}</span>
-                    <span class="font-mono text-[11px] text-zinc-300 shrink-0">${item.conf}%</span>
-                  </div>
-                  <div class="w-full h-1.5 bg-bg rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r ${cat.color}" style="width: ${item.conf}%"></div>
-                  </div>
-                  <div class="text-[10px] text-zinc-500">${item.note}</div>
-                </div>
-              `).join('')
-            }
-          </div>
-        `;
-      }).join('');
-    }
-
-    // --- Web Audio FFT 스펙트럼 시각화 ---
-    function setupVisualizer() {
-      const player = $('audioPlayer');
-      const canvas = $('spectrumCanvas');
-      const ctx = canvas.getContext('2d');
-
-      player.addEventListener('play', () => {
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        if (!isAudioSourceConnected && player.src) {
-          try {
-            const srcNode = audioCtx.createMediaElementSource(player);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 128;
-            srcNode.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            isAudioSourceConnected = true;
-          } catch {
-            // CORS 제한 시 폴백 애니메이션 사용
-          }
-        }
-      });
-
-      function draw() {
-        requestAnimationFrame(draw);
-        const w = canvas.width = canvas.clientWidth || 260;
-        const h = canvas.height = canvas.clientHeight || 64;
-        ctx.clearRect(0, 0, w, h);
-
-        const bars = 32;
-        const barW = w / bars;
-
-        if (analyser && !player.paused) {
-          const dataArray = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteFrequencyData(dataArray);
-          for (let i = 0; i < bars; i++) {
-            const v = (dataArray[i % dataArray.length] || 0) / 255;
-            const bh = Math.max(3, v * h);
-            ctx.fillStyle = `rgba(139, 92, 246, ${0.45 + v * 0.55})`;
-            ctx.fillRect(i * barW + 1, h - bh, Math.max(2, barW - 2), bh);
-          }
-        } else if (!player.paused) {
-          const t = performance.now() * 0.006;
-          for (let i = 0; i < bars; i++) {
-            const v = 0.25 + 0.55 * Math.abs(Math.sin(t + i * 0.35));
-            const bh = v * h;
-            ctx.fillStyle = 'rgba(6, 182, 212, 0.65)';
-            ctx.fillRect(i * barW + 1, h - bh, Math.max(2, barW - 2), bh);
-          }
-        } else {
-          ctx.fillStyle = '#27272f';
-          for (let i = 0; i < bars; i++) {
-            ctx.fillRect(i * barW + 1, h - 3, Math.max(2, barW - 2), 3);
-          }
-        }
-      }
-      draw();
-    }
-
-    // --- 내장 신디사이저 코드 진행 재생 ---
-    function getChordMidis(profile) {
-      return profile.prog.map(deg => {
-        const root = profile.rootMidi + profile.scale[deg % profile.scale.length];
-        const third = root + (profile.name.includes('Minor') ? 3 : 4);
-        const fifth = root + 7;
-        return [root, third, fifth];
-      });
-    }
-
-    function midiToFreq(midi) {
-      return 440 * Math.pow(2, (midi - 69) / 12);
-    }
-
-    $('playChordBtn').addEventListener('click', () => {
-      if (!currentAnalysis) return;
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-
-      const chords = getChordMidis(currentAnalysis.keyProfile);
-      const beatSec = 60 / (currentAnalysis.bpm || 120);
-      const chordDur = beatSec * 2; // 2박자씩 4코드
-
-      chords.forEach((notes, idx) => {
-        const start = audioCtx.currentTime + idx * chordDur;
-        notes.forEach(m => {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(midiToFreq(m), start);
-
-          gain.gain.setValueAtTime(0.001, start);
-          gain.gain.exponentialRampToValueAtTime(0.08, start + 0.04);
-          gain.gain.exponentialRampToValueAtTime(0.0008, start + chordDur - 0.03);
-
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start(start);
-          osc.stop(start + chordDur);
-        });
-      });
+$('playChords').onclick = () => {
+  if (!cur?.key) return;
+  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  stopChords();
+  const dur = (60 / (cur.bpm || 120)) * 2;
+  chordsFor(cur.key).forEach((notes, idx) => {
+    const t0 = audioCtx.currentTime + 0.05 + idx * dur;
+    notes.forEach((m) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+      g.gain.setValueAtTime(0.001, t0);
+      g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur - 0.03);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t0); o.stop(t0 + dur);
+      chordNodes.push(o);
     });
+  });
+};
 
-    // --- 표준 SMF (.mid) 파일 생성 및 다운로드 ---
-    function writeVarLen(val) {
-      const bytes = [];
-      let v = val & 0x7F;
-      bytes.unshift(v);
-      while ((val >>= 7) > 0) {
-        bytes.unshift((val & 0x7F) | 0x80);
-      }
-      return bytes;
+const vlq = (v) => { const b = [v & 0x7f]; while ((v >>= 7) > 0) b.unshift((v & 0x7f) | 0x80); return b; };
+
+$('downloadMidi').onclick = () => {
+  if (!cur?.key) return;
+  const ppq = 480, ticks = ppq * 2, ev = [];
+  chordsFor(cur.key).forEach((notes, i) => notes.forEach((n) => {
+    ev.push({ t: i * ticks, on: 1, n }, { t: (i + 1) * ticks - 20, on: 0, n });
+  }));
+  ev.sort((a, b) => a.t - b.t || a.on - b.on);
+
+  const usec = Math.round(60000000 / (cur.bpm || 120));
+  const data = [0x00, 0xff, 0x51, 0x03, (usec >> 16) & 255, (usec >> 8) & 255, usec & 255];
+  let last = 0;
+  ev.forEach((e) => {
+    data.push(...vlq(e.t - last), e.on ? 0x90 : 0x80, e.n & 0x7f, e.on ? 90 : 0);
+    last = e.t;
+  });
+  data.push(0x00, 0xff, 0x2f, 0x00);
+
+  const L = data.length;
+  const bytes = new Uint8Array([
+    0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, ppq >> 8, ppq & 255,
+    0x4d, 0x54, 0x72, 0x6b, (L >>> 24) & 255, (L >>> 16) & 255, (L >>> 8) & 255, L & 255, ...data
+  ]);
+  const name = cur.track.trackName.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 60) || 'chords';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
+  a.download = `${name}_${cur.bpm}bpm.mid`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+
+// ---------- BPM 조작 / 복사 ----------
+const setBpm = (v) => { if (!cur) return; cur.bpm = Math.min(220, Math.max(40, Math.round(v))); renderTempoKey(); save(); };
+$('half').onclick = () => cur?.bpm && setBpm(cur.bpm / 2);
+$('double').onclick = () => cur?.bpm && setBpm(cur.bpm * 2);
+$('tap').onclick = () => {
+  const now = performance.now();
+  tapTimes = tapTimes.filter((t) => now - t < 2500); tapTimes.push(now);
+  if (tapTimes.length >= 2) {
+    const gaps = tapTimes.slice(1).map((t, i) => t - tapTimes[i]);
+    setBpm(60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length));
+  }
+};
+$('copyPrompt').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('prompt').textContent);
+    $('copyPrompt').textContent = '복사됨';
+    setTimeout(() => { $('copyPrompt').textContent = '복사'; }, 1200);
+  } catch { setStatus('복사하지 못했습니다. 텍스트를 직접 선택해 복사하세요.'); }
+};
+$('thr').oninput = renderDna;
+
+// ---------- 파이프라인 ----------
+async function run(raw) {
+  const q = await resolveInput(raw);
+  if (!q) { setStatus('링크에서 곡 제목을 찾지 못했습니다. 제목과 아티스트를 직접 입력하세요.'); return; }
+  curKey = 'sl2:' + q.toLowerCase();
+  $('info').textContent = '';
+  try {
+    const cached = store.get(curKey);
+    if (cached?.track) {
+      setStatus('저장된 분석을 불러오는 중...');
+      const buf = await (cached.track.previewUrl ? loadAudio(cached.track.previewUrl).catch(() => null) : null);
+      render(cached, buf);
+      $('info').textContent = '저장된 결과';
+      setStatus(`${cached.track.artistName} – ${cached.track.trackName}`);
+      return;
     }
+    setStatus(`"${q}" 검색 중...`);
+    const track = await searchTrack(q);
+    if (!track) { setStatus(`"${q}" 검색 결과가 없습니다. 다른 키워드로 시도해 보세요.`); return; }
 
-    $('downloadMidiBtn').addEventListener('click', () => {
-      if (!currentAnalysis) return;
-      const chords = getChordMidis(currentAnalysis.keyProfile);
-      const ppq = 480;
-      const chordTicks = ppq * 2;
-      const events = [];
+    setStatus('가사와 오디오를 가져오는 중...');
+    const [lyr, buf] = await Promise.all([
+      fetchLyrics(track),
+      track.previewUrl ? loadAudio(track.previewUrl).catch(() => null) : null
+    ]);
 
-      chords.forEach((notes, i) => {
-        const startTick = i * chordTicks;
-        const endTick = startTick + chordTicks - 20;
-        notes.forEach(n => {
-          events.push({ tick: startTick, type: 'on', note: n, vel: 90 });
-          events.push({ tick: endTick, type: 'off', note: n, vel: 0 });
-        });
-      });
+    setStatus('BPM과 키를 측정하는 중...');
+    const m = buf ? await analyzeAudio(buf).catch(() => null) : null;
 
-      events.sort((a, b) => a.tick - b.tick);
-      let lastTick = 0;
-      const trackData = [];
+    setStatus('AI 분석 중...');
+    let ai = null, aiErr = '';
+    try { ai = await analyzeAI(track, lyr, m); } catch (e) { aiErr = e.message; }
 
-      events.forEach(ev => {
-        const delta = Math.max(0, ev.tick - lastTick);
-        lastTick = ev.tick;
-        trackData.push(...writeVarLen(delta));
-        if (ev.type === 'on') {
-          trackData.push(0x90, ev.note & 0x7F, ev.vel);
-        } else {
-          trackData.push(0x80, ev.note & 0x7F, 0);
-        }
-      });
-      trackData.push(0x00, 0xFF, 0x2F, 0x00); // End of track
+    const data = { track, bpm: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key), ai, lyrics: lyr.text, lyricsFound: lyr.found };
+    if (data.measured || ai) store.set(curKey, data);
+    render(data, buf);
+    $('info').textContent = ai ? 'AI + 오디오 측정' : `오디오 측정만 사용 (AI: ${aiErr})`;
+    setStatus(`${track.artistName} – ${track.trackName}`);
+  } catch (e) {
+    setStatus(`오류: ${e.message}`);
+  }
+}
 
-      const header = [
-        0x4D, 0x54, 0x68, 0x64, // MThd
-        0x00, 0x00, 0x00, 0x06, // length 6
-        0x00, 0x00,             // format 0
-        0x00, 0x01,             // 1 track
-        (ppq >> 8) & 0xFF, ppq & 0xFF
-      ];
-
-      const len = trackData.length;
-      const trackHeader = [
-        0x4D, 0x54, 0x72, 0x6B, // MTrk
-        (len >> 24) & 0xFF, (len >> 16) & 0xFF, (len >> 8) & 0xFF, len & 0xFF
-      ];
-
-      const blob = new Blob([new Uint8Array([...header, ...trackHeader, ...trackData])], { type: 'audio/midi' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${currentAnalysis.track.trackName.replace(/\s+/g, '_')}_${currentAnalysis.bpm}bpm.mid`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-
-    // --- BPM 조작 & 프롬프트 복사 ---
-    $('halfBpmBtn').addEventListener('click', () => {
-      if (!currentAnalysis) return;
-      currentAnalysis.bpm = Math.max(50, Math.round(currentAnalysis.bpm / 2));
-      $('bpmValue').textContent = currentAnalysis.bpm;
-    });
-
-    $('doubleBpmBtn').addEventListener('click', () => {
-      if (!currentAnalysis) return;
-      currentAnalysis.bpm = Math.min(220, Math.round(currentAnalysis.bpm * 2));
-      $('bpmValue').textContent = currentAnalysis.bpm;
-    });
-
-    $('tapBpmBtn').addEventListener('click', () => {
-      const now = performance.now();
-      tapTimes = tapTimes.filter(t => now - t < 2500);
-      tapTimes.push(now);
-      if (tapTimes.length >= 2) {
-        const intervals = [];
-        for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
-        const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-        const bpm = Math.min(220, Math.max(50, Math.round(60000 / avgMs)));
-        if (currentAnalysis) currentAnalysis.bpm = bpm;
-        $('bpmValue').textContent = bpm;
-      }
-    });
-
-    $('copyPromptBtn').addEventListener('click', async () => {
-      const txt = $('stylePromptText').textContent;
-      try {
-        await navigator.clipboard.writeText(txt);
-        $('copyPromptBtn').textContent = '복사됨!';
-        setTimeout(() => { $('copyPromptBtn').textContent = '복사'; }, 1200);
-      } catch {
-        setStatus('클립보드 복사에 실패했습니다. 텍스트를 직접 선택해 복사하세요.');
-      }
-    });
-
-    $('confThreshold').addEventListener('input', renderDnaCards);
-
-    // --- 메인 분석 파이프라인 ---
-    async function runPipeline(rawInput) {
-      const query = extractQueryFromInput(rawInput);
-      if (!query) return;
-      setStatus(`"${query}" 검색 및 트랙 데이터 수집 중...`);
-
-      const cacheKey = `sonic_lens_v1_${query.toLowerCase()}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        renderAnalysis(parsed);
-        setStatus(`캐시에서 즉시 로드됨: ${parsed.track.artistName} - ${parsed.track.trackName}`);
-        $('cacheInfo').textContent = 'LocalStorage Cache Hit';
-        return;
-      }
-
-      try {
-        const track = await searchTrack(query);
-        if (!track) {
-          setStatus(`"${query}"에 대한 검색 결과가 없습니다. 다른 키워드로 시도해 보세요.`);
-          return;
-        }
-        setStatus(`가사 조회 및 사운드 특성 분석 중... (${track.trackName})`);
-        const lyricsObj = await fetchLyrics(track.trackName, track.artistName);
-        const analysis = buildAnalysis(track, lyricsObj);
-        localStorage.setItem(cacheKey, JSON.stringify(analysis));
-        $('cacheInfo').textContent = 'Live API Analyzed';
-        renderAnalysis(analysis);
-        setStatus(`분석 완료: ${track.artistName} - ${track.trackName}`);
-      } catch (err) {
-        setStatus(`오류 발생: ${err.message}`);
-      }
-    }
-
-    $('searchForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      runPipeline($('searchInput').value);
-    });
-
-    document.querySelectorAll('.sample-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const sample = btn.dataset.sample;
-        $('searchInput').value = sample;
-        runPipeline(sample);
-      });
-    });
-
-    setupVisualizer();
-    runPipeline('Daft Punk Get Lucky');
-  </script>
+$('searchForm').addEventListener('submit', (e) => { e.preventDefault(); run($('searchInput').value); });
+document.querySelectorAll('.sample').forEach((b) => b.addEventListener('click', () => { $('searchInput').value = b.dataset.q; run(b.dataset.q); }));
+setupVisualizer();
+run('Daft Punk Get Lucky');
+</script>
 </body>
 </html>
