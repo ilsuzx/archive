@@ -646,6 +646,7 @@ $('candList').addEventListener('click', (e) => {
   const b = e.target.closest('.cand'); if (!b) return;
   const t = candData[Number(b.dataset.i)]; if (!t) return;
   candSel = t.trackId;
+  $('candBox').open = false;   // 곡을 고르면 검색 결과 목록을 접는다
   document.querySelectorAll('.cand').forEach((x) => x.classList.toggle('on', x === b));
   pickTrack(t);
 });
@@ -703,14 +704,16 @@ async function analyzeAI(t, lyr, m, retried) {
 let aiBusy = false;
 async function retryAI() {
   if (!cur || aiBusy) return;
+  const d = cur;
   aiBusy = true;
   const btn = document.querySelector('.retry-ai');
   if (btn) { btn.disabled = true; btn.textContent = '분석 중...'; }
   setStatus('분석 다시 시도 중...');
   try {
-    const m = { bpm: cur.bpm, key: cur.key };
-    cur.ai = await analyzeAI(cur.track, { found: cur.lyricsFound, text: cur.lyrics }, m);
-    commit(cur);
+    const m = { bpm: d.bpm, key: d.key };
+    d.ai = await analyzeAI(d.track, { found: d.lyricsFound, text: d.lyrics }, m);
+    commit(d);
+    if (cur !== d) return;   // 그 사이 다른 곡으로 바뀌었으면 화면은 건드리지 않는다
     renderSaveBar();
     $('chips').innerHTML = (cur.ai.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
     $('summary').textContent = cur.ai.lyricsSummary || '분석 결과를 가져오지 못해 요약이 없습니다.';
@@ -718,9 +721,11 @@ async function retryAI() {
     renderDna();
     setStatus(`${cur.track.artistName} – ${cur.track.trackName}`);
   } catch (e) {
-    $('info').textContent = `오디오 측정만 사용 (${e.message})`;
-    setStatus(`${cur.track.artistName} – ${cur.track.trackName}`);
-    renderDna();
+    if (cur === d) {
+      $('info').textContent = `오디오 측정만 사용 (${e.message})`;
+      setStatus(`${d.track.artistName} – ${d.track.trackName}`);
+      renderDna();
+    }
   } finally { aiBusy = false; }
 }
 document.addEventListener('click', (e) => { if (e.target.closest('.retry-ai')) retryAI(); });
@@ -911,6 +916,7 @@ async function tryCache(my, id) {
   const inLib = loadLib().find((e) => e.id === String(id));
   const cached = inLib ? inLib.d : temp.get(String(id));
   if (!cached?.track) return false;
+  resetView(cached.track);
   setStatus('저장된 분석을 불러오는 중...');
   const buf = await (cached.track.previewUrl ? loadAudio(cached.track.previewUrl).catch(() => null) : null);
   if (my !== runSeq) return true;
@@ -924,6 +930,7 @@ async function tryCache(my, id) {
 
 async function analyzeTrack(track, my) {
   try {
+    resetView(track);
     setStatus('가사와 오디오를 가져오는 중...');
     const [lyr, buf] = await Promise.all([
       fetchLyrics(track),
@@ -946,8 +953,42 @@ async function analyzeTrack(track, my) {
     $('info').textContent = ai ? '사운드 분석 + 오디오 측정' : `오디오 측정만 사용 (${aiErr})`;
     setStatus(`${track.artistName} – ${track.trackName}`);
   } catch (e) {
-    if (my === runSeq) setStatus(`오류: ${e.message}`);
+    if (my === runSeq) { setStatus(`오류: ${e.message}`); failView(); }
   }
+}
+
+// 새 곡을 불러오기 시작할 때 이전 곡의 결과를 지우고 로딩 상태로 바꾼다
+function resetView(t) {
+  cur = null; bpmHist = []; tapTimes = []; mixAll = false;
+  const p = $('player');
+  p.pause();
+  if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+  p.removeAttribute('src'); p.load();
+  $('cover').src = (t.artworkUrl100 || '').replace('100x100bb', '400x400bb');
+  $('title').textContent = t.trackName || '';
+  $('artist').textContent = t.artistName || '';
+  $('album').textContent = `${t.collectionName || 'Single'} · ${(t.releaseDate || '').slice(0, 4)}`;
+  $('bpm').textContent = '…'; $('key').textContent = '…';
+  $('camelot').textContent = ''; $('compat').textContent = '';
+  $('bpmConf').textContent = ''; $('bpmConf').className = 'muted lvl';
+  $('bpmUndo').disabled = true; $('bpmReset').disabled = true;
+  $('measureNote').textContent = '· 측정 중...';
+  const loading = '<div class="muted">불러오는 중...</div>';
+  $('featBody').innerHTML = loading;
+  $('dna').innerHTML = loading;
+  $('mixCount').textContent = ''; $('mixList').innerHTML = loading;
+  $('chips').innerHTML = '';
+  $('summary').textContent = '분석 중...';
+  $('lyrics').textContent = '';
+  $('info').textContent = '';
+  renderSaveBar();   // cur가 없으므로 저장 바가 숨겨진다
+}
+function failView() {
+  $('bpm').textContent = '—'; $('key').textContent = '—';
+  $('measureNote').textContent = '';
+  const m = '<div class="muted">분석하지 못했습니다.</div>';
+  $('featBody').innerHTML = m; $('dna').innerHTML = m; $('mixList').innerHTML = m;
+  $('summary').textContent = '분석하지 못했습니다.';
 }
 
 // 후보 목록에서 직접 고른 곡: 곡 ID 기준으로 캐시
