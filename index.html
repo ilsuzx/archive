@@ -50,7 +50,7 @@
   .acts { display:flex; gap:8px; }
   .stats { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .stat .v { font-size:28px; font-weight:600; line-height:1.2; letter-spacing:-.02em; }
-  .stat .row { display:flex; gap:4px; margin-top:8px; }
+  .stat .row { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
   .dna { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   @media (max-width:560px) { .dna { grid-template-columns:1fr; } }
   .group { background:var(--soft); border-radius:10px; padding:14px; }
@@ -94,11 +94,14 @@
   .song:first-child { border-top:0; }
   .song img { width:44px; height:44px; border-radius:6px; object-fit:cover; background:var(--line); flex:none; }
   .song .meta { flex:1; min-width:0; }
-  .song .meta b, .song .meta span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .song .meta > b, .song .meta > span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lvl { font-size:12px; margin-top:6px; }
   .lvl.high { color:#16a34a; }
   .lvl.low { color:#d97706; }
-  .badge { display:inline-block; font-size:11px; padding:0 8px; border-radius:999px; background:var(--soft); color:var(--mut); margin-right:4px; }
+  .badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .badge { display:inline-block; font-size:11px; line-height:18px; padding:0 8px; border-radius:999px; background:var(--soft); color:var(--mut); white-space:nowrap; }
+  .pager { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:10px; }
+  .pager span { color:var(--mut); font-size:12px; }
   .badge.ok { background:var(--ac); color:var(--ac-fg); }
   .feat-nums { display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:12px; }
 </style>
@@ -118,7 +121,7 @@
       </form>
     </div>
     <div class="status"><span id="statusText">곡 제목을 입력하세요.</span><span id="info"></span></div>
-    <details id="candBox" hidden><summary id="candSum"></summary><div id="candList"></div></details>
+    <details id="candBox" hidden><summary id="candSum"></summary><div id="candList"></div><div class="pager" id="candPager" hidden><button type="button" class="small" id="candPrev" aria-label="이전 페이지">‹</button><span id="candPage"></span><button type="button" class="small" id="candNext" aria-label="다음 페이지">›</button></div></details>
   </div>
 </header>
 
@@ -153,6 +156,10 @@
             <button class="small" id="double" type="button">×2</button>
             <button class="small" id="tap" type="button">탭</button>
           </div>
+          <div class="row">
+            <button class="small" id="bpmUndo" type="button" disabled>되돌리기</button>
+            <button class="small" id="bpmReset" type="button" disabled>초기화</button>
+          </div>
           <div class="muted lvl" id="bpmConf" role="status"></div>
         </div>
         <div class="stat">
@@ -185,7 +192,7 @@
           <span id="thrVal">0%</span>
         </label>
       </div>
-      <div class="muted" style="margin-bottom:10px">확신도는 AI가 스스로 추정한 값이며 정확도를 보증하지 않습니다.</div>
+      <div class="muted" style="margin-bottom:10px">확신도는 추정값이며 정확도를 보증하지 않습니다.</div>
       <div id="dna" class="dna"></div>
     </section>
 
@@ -221,13 +228,13 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
 };
 const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KS_MAJ = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
 const KS_MIN = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
 
-let cur = null, tapTimes = [];
+let cur = null, tapTimes = [], mixAll = false;
 const temp = new Map();      // 아직 취향에 추가하지 않은 분석 결과 (새로고침하면 사라짐)
 const skipped = new Set();   // "추가 안 함"을 고른 곡 ID
 let audioCtx = null, analyser = null, connected = false, blobUrl = null;
@@ -353,7 +360,7 @@ function tempoConfidence(conf, ticks) {
 }
 function tempoLevel(d) {
   if (!d?.bpm) return null;
-  if (d.bpmManual) return { cls: '', text: 'BPM을 직접 보정한 값입니다.' };
+  if (d.bpmManual) return { cls: '', text: `BPM을 직접 보정한 값입니다${d.bpmOrig ? ` (측정값 ${d.bpmOrig})` : ''}.` };
   const tc = d.tempoConf;
   let lvl, why = [];
   if (!tc) {
@@ -480,15 +487,15 @@ function renderMix() {
     box.innerHTML = `<div class="muted">저장한 ${total}곡 중 BPM(±6%)이나 키가 어울리는 곡이 없습니다.</div>`;
     return;
   }
-  box.innerHTML = list.slice(0, 6).map((m) => {
+  box.innerHTML = list.slice(0, mixAll ? list.length : 6).map((m) => {
     const o = m.e.d, t = o.track;
     const info = [o.bpm ? `${o.bpm} BPM` : '', o.key ? `${camelot(o.key)} ${keyName(o.key)}` : ''].filter(Boolean).join(' · ');
     const badges = (cur.bpm ? `<span class="badge${m.bpmOk ? ' ok' : ''}">BPM ${m.bpmOk ? esc(m.bpmTag) : '다름'}</span>` : '')
       + (cur.key ? `<span class="badge${m.keyOk ? ' ok' : ''}">키 ${m.keyOk ? esc(m.keyTag) : '다름'}</span>` : '');
     return `<div class="song"><img src="${esc(t.artworkUrl60 || '')}" alt="" />
-      <div class="meta"><b>${esc(t.trackName)}</b><span class="muted">${esc(t.artistName)}</span><span class="muted">${esc(info)}</span><span>${badges}</span></div>
+      <div class="meta"><b>${esc(t.trackName)}</b><span class="muted">${esc(t.artistName)}</span><span class="muted">${esc(info)}</span><div class="badges">${badges}</div></div>
       <button type="button" class="small" data-act="open" data-key="${esc(m.e.key)}">열기</button></div>`;
-  }).join('') + (list.length > 6 ? `<div class="muted" style="margin-top:8px">외 ${list.length - 6}곡</div>` : '');
+  }).join('') + (list.length > 6 ? `<div style="margin-top:8px"><button type="button" class="small" id="mixMore">${mixAll ? '접기' : `외 ${list.length - 6}곡 더 보기`}</button></div>` : '');
 }
 
 let essentiaP = null;
@@ -589,17 +596,17 @@ async function fetchJsonViaProxy(url) {
   }
 }
 
+const CAND_MAX = 50;
 async function searchCandidates(q) {
-  // 한국 스토어를 먼저 검색하면 한글 제목/아티스트명이 나와 가사 DB 매칭률이 올라갑니다.
+  // 한국 스토어 결과를 먼저, 미국 스토어 결과를 뒤에 합친다 (한글 제목/아티스트명이 나와 가사 DB 매칭률이 올라갑니다)
+  const get = (c) => fetchJsonViaProxy(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=${CAND_MAX}&country=${c}`);
+  const rs = await Promise.allSettled([get('kr'), get('us')]);
+  if (rs.every((r) => r.status === 'rejected')) throw rs[0].reason;
   const seen = new Set(), out = [];
-  for (const c of ['kr', 'us']) {
-    const j = await fetchJsonViaProxy(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=8&country=${c}`);
-    for (const t of j.results || []) {
-      if (!seen.has(t.trackId)) { seen.add(t.trackId); out.push(t); }
-    }
-    if (out.length >= 3) break;
+  for (const r of rs) for (const t of (r.status === 'fulfilled' && r.value.results) || []) {
+    if (t.trackId && !seen.has(t.trackId)) { seen.add(t.trackId); out.push(t); }
   }
-  return out.slice(0, 8);
+  return out.slice(0, CAND_MAX);
 }
 
 // 검색어가 1순위 곡의 제목과 아티스트를 모두 담고 있으면 바로 분석, 아니면 선택을 받는다
@@ -609,21 +616,36 @@ function isStrong(q, t) {
   return Boolean(tn && an && qn.includes(tn) && qn.includes(an));
 }
 
-let candData = [];
+const PAGE = 10;
+let candData = [], candPage = 0, candSel = null, candAuto = false;
 function renderCands(list, auto) {
-  candData = list;
+  candData = list; candPage = 0; candAuto = auto;
+  candSel = auto ? list[0]?.trackId : null;
   const box = $('candBox');
   if (list.length < 2) { box.hidden = true; return; }
-  $('candSum').textContent = auto ? `다른 곡이 맞나요? 검색 결과 ${list.length}개` : `검색 결과 ${list.length}개 — 분석할 곡을 선택하세요`;
-  $('candList').innerHTML = list.map((t, i) => `<button type="button" class="cand${auto && i === 0 ? ' on' : ''}" data-i="${i}">
+  drawCands();
+  box.open = !auto; box.hidden = false;
+}
+function drawCands() {
+  const pages = Math.ceil(candData.length / PAGE);
+  candPage = Math.min(Math.max(0, candPage), pages - 1);
+  const start = candPage * PAGE;
+  $('candSum').textContent = candAuto ? `다른 곡이 맞나요? 검색 결과 ${candData.length}개` : `검색 결과 ${candData.length}개 — 분석할 곡을 선택하세요`;
+  $('candList').innerHTML = candData.slice(start, start + PAGE).map((t, i) => `<button type="button" class="cand${t.trackId === candSel ? ' on' : ''}" data-i="${start + i}">
     <img src="${esc(t.artworkUrl60 || '')}" alt="" />
     <span><span class="t">${esc(t.trackName)}</span><br><span class="muted">${esc(t.artistName)} · ${esc(t.collectionName || 'Single')}${t.releaseDate ? ' · ' + esc(t.releaseDate.slice(0, 4)) : ''}${t.previewUrl ? '' : ' · 미리듣기 없음'}</span></span>
   </button>`).join('');
-  box.open = !auto; box.hidden = false;
+  $('candPager').hidden = pages < 2;
+  $('candPage').textContent = `${candPage + 1} / ${pages}`;
+  $('candPrev').disabled = candPage === 0;
+  $('candNext').disabled = candPage >= pages - 1;
 }
+$('candPrev').onclick = () => { candPage--; drawCands(); };
+$('candNext').onclick = () => { candPage++; drawCands(); };
 $('candList').addEventListener('click', (e) => {
   const b = e.target.closest('.cand'); if (!b) return;
   const t = candData[Number(b.dataset.i)]; if (!t) return;
+  candSel = t.trackId;
   document.querySelectorAll('.cand').forEach((x) => x.classList.toggle('on', x === b));
   pickTrack(t);
 });
@@ -665,14 +687,14 @@ async function analyzeAI(t, lyr, m, retried) {
   });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
-    if (j.debug) console.warn('[AI 분석 실패]', j.code, j.debug);
+    if (j.debug) console.warn('[분석 실패]', j.code, j.debug);
     // 서버 혼잡·일시 오류는 잠깐 뒤 자동으로 한 번 더 시도
     if (!retried && j.retryable && j.code !== 'quota') {
-      setStatus('AI 서버가 혼잡해 다시 시도하는 중...');
+      setStatus('서버가 혼잡해 다시 시도하는 중...');
       await new Promise((ok) => setTimeout(ok, 2500));
       return analyzeAI(t, lyr, m, true);
     }
-    throw new Error(j.error || `AI 분석 요청 실패 (HTTP ${r.status})`);
+    throw new Error(j.error || `분석 요청 실패 (HTTP ${r.status})`);
   }
   return r.json();
 }
@@ -683,16 +705,16 @@ async function retryAI() {
   if (!cur || aiBusy) return;
   aiBusy = true;
   const btn = document.querySelector('.retry-ai');
-  if (btn) { btn.disabled = true; btn.textContent = 'AI 분석 중...'; }
-  setStatus('AI 분석 다시 시도 중...');
+  if (btn) { btn.disabled = true; btn.textContent = '분석 중...'; }
+  setStatus('분석 다시 시도 중...');
   try {
     const m = { bpm: cur.bpm, key: cur.key };
     cur.ai = await analyzeAI(cur.track, { found: cur.lyricsFound, text: cur.lyrics }, m);
     commit(cur);
     renderSaveBar();
     $('chips').innerHTML = (cur.ai.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
-    $('summary').textContent = cur.ai.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
-    $('info').textContent = 'AI + 오디오 측정';
+    $('summary').textContent = cur.ai.lyricsSummary || '분석 결과를 가져오지 못해 요약이 없습니다.';
+    $('info').textContent = '사운드 분석 + 오디오 측정';
     renderDna();
     setStatus(`${cur.track.artistName} – ${cur.track.trackName}`);
   } catch (e) {
@@ -736,7 +758,10 @@ function addToLib() {
   if (!cur?.track) return;
   const id = String(cur.track.trackId);
   cur.savedAt = Date.now();
-  store.set('sl4:id:' + id, cur);
+  if (!store.set('sl4:id:' + id, { ...cur, lyrics: String(cur.lyrics || '').slice(0, 3000) })) {
+    $('saveSub').textContent = '저장 공간이 부족해 추가하지 못했습니다. 내보내기로 백업한 뒤 오래된 곡을 삭제해 주세요.';
+    return;
+  }
   temp.delete(id); skipped.delete(id);
   renderSaveBar();
 }
@@ -756,7 +781,8 @@ $('saveBar').addEventListener('click', (ev) => {
 });
 
 function render(d, buf) {
-  cur = d;
+  cur = d; bpmHist = []; tapTimes = []; mixAll = false;
+  if (d.bpmOrig == null && d.bpm && !d.bpmManual) d.bpmOrig = d.bpm;   // 이전 버전 저장곡: 보정 전 값이 현재 값
   const t = d.track;
   $('cover').src = (t.artworkUrl100 || '').replace('100x100bb', '400x400bb');
   $('title').textContent = t.trackName;
@@ -773,7 +799,7 @@ function render(d, buf) {
   renderFeatures();
   $('measureNote').textContent = d.measured ? `· 미리듣기 30초에서 측정${d.engine ? ' (' + d.engine + ')' : ''}` : '· 측정하지 못했습니다';
   $('chips').innerHTML = (d.ai?.moodKeywords || []).map((k) => `<span class="chip">${esc(k)}</span>`).join('');
-  $('summary').textContent = d.ai?.lyricsSummary || 'AI 분석을 사용할 수 없어 요약이 없습니다.';
+  $('summary').textContent = d.ai?.lyricsSummary || '분석 결과를 가져오지 못해 요약이 없습니다.';
   $('lyrics').textContent = d.lyrics;
   renderDna();
   renderSaveBar();
@@ -787,6 +813,8 @@ function renderTempoKey() {
   const lv = tempoLevel(cur), el = $('bpmConf');
   el.className = 'muted lvl' + (lv?.cls ? ' ' + lv.cls : '');
   el.textContent = lv ? ((lv.cls === 'high' ? '● ' : lv.cls ? '▲ ' : '') + lv.text) : '';
+  $('bpmUndo').disabled = !bpmHist.length;
+  $('bpmReset').disabled = !(cur.bpmOrig && (cur.bpmManual || cur.bpm !== cur.bpmOrig));
   renderMix();
 }
 
@@ -795,7 +823,7 @@ function renderDna() {
   $('thrVal').textContent = thr + '%';
   const cats = cur?.ai?.categories;
   if (!cats) {
-    $('dna').innerHTML = `<div class="muted">AI 분석을 사용할 수 없습니다. 장르: ${esc(cur?.track.primaryGenreName || '알 수 없음')}</div><div style="margin-top:10px"><button type="button" class="small retry-ai">AI 분석 다시 시도</button></div>`;
+    $('dna').innerHTML = `<div class="muted">분석 결과를 가져오지 못했습니다. 장르: ${esc(cur?.track.primaryGenreName || '알 수 없음')}</div><div style="margin-top:10px"><button type="button" class="small retry-ai">분석 다시 시도</button></div>`;
     return;
   }
   $('dna').innerHTML = cats.map((c) => {
@@ -847,16 +875,32 @@ function setupVisualizer() {
 }
 
 // ---------- BPM 조작 ----------
-const setBpm = (v) => { if (!cur) return; cur.bpm = Math.min(220, Math.max(40, Math.round(v))); cur.bpmManual = true; renderTempoKey(); save(); };
+let bpmHist = [], tapRec = false;   // 현재 곡의 BPM 변경 기록 (되돌리기용)
+const bpmSnap = () => ({ bpm: cur.bpm, manual: Boolean(cur.bpmManual) });
+function setBpm(v, record = true) {
+  if (!cur) return;
+  if (record) bpmHist.push(bpmSnap());
+  cur.bpm = Math.min(220, Math.max(40, Math.round(v))); cur.bpmManual = true;
+  renderTempoKey(); save();
+}
+function restoreBpm(s) { cur.bpm = s.bpm; cur.bpmManual = s.manual; renderTempoKey(); save(); }
 $('half').onclick = () => cur?.bpm && setBpm(cur.bpm / 2);
 $('double').onclick = () => cur?.bpm && setBpm(cur.bpm * 2);
 $('tap').onclick = () => {
+  if (!cur) return;
   const now = performance.now();
-  tapTimes = tapTimes.filter((t) => now - t < 2500); tapTimes.push(now);
+  tapTimes = tapTimes.filter((t) => now - t < 2500);
+  if (!tapTimes.length) tapRec = false;   // 새 탭 묶음의 첫 변경 전에만 기록
+  tapTimes.push(now);
   if (tapTimes.length >= 2) {
     const gaps = tapTimes.slice(1).map((t, i) => t - tapTimes[i]);
-    setBpm(60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length));
+    setBpm(60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length), !tapRec); tapRec = true;
   }
+};
+$('bpmUndo').onclick = () => { if (cur && bpmHist.length) restoreBpm(bpmHist.pop()); };
+$('bpmReset').onclick = () => {
+  if (!cur?.bpmOrig || (cur.bpm === cur.bpmOrig && !cur.bpmManual)) return;
+  bpmHist.push(bpmSnap()); restoreBpm({ bpm: cur.bpmOrig, manual: false });
 };
 $('thr').oninput = renderDna;
 
@@ -873,7 +917,7 @@ async function tryCache(my, id) {
   render(cached, buf);
   setStatus(`${cached.track.artistName} – ${cached.track.trackName}`);
   if (cached.ai) { $('info').textContent = inLib ? '저장된 결과' : '이번 접속 중 분석한 결과'; return true; }
-  $('info').textContent = '저장된 측정값 사용, AI 분석 재시도 중...';
+  $('info').textContent = '저장된 측정값 사용, 분석 재시도 중...';
   await retryAI();
   return true;
 }
@@ -891,15 +935,15 @@ async function analyzeTrack(track, my) {
     const m = buf ? await analyzeAudio(buf).catch(() => null) : null;
     if (my !== runSeq) return;
 
-    setStatus('AI 분석 중...');
+    setStatus('분석 중...');
     let ai = null, aiErr = '';
     try { ai = await analyzeAI(track, lyr, m); } catch (e) { aiErr = e.message; }
     if (my !== runSeq) return;
 
-    const data = { track, bpm: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key || m?.feat), engine: m?.engine, tempoConf: m?.tempoConf || null, feat: m?.feat || null, bpmManual: false, ai, lyrics: lyr.text, lyricsFound: lyr.found, savedAt: Date.now() };
+    const data = { track, bpm: m?.bpm || null, bpmOrig: m?.bpm || null, key: m?.key || null, measured: Boolean(m?.bpm || m?.key || m?.feat), engine: m?.engine, tempoConf: m?.tempoConf || null, feat: m?.feat || null, bpmManual: false, ai, lyrics: lyr.text, lyricsFound: lyr.found, savedAt: Date.now() };
     if (data.measured || ai) temp.set(String(track.trackId), data);
     render(data, buf);
-    $('info').textContent = ai ? 'AI + 오디오 측정' : `오디오 측정만 사용 (${aiErr})`;
+    $('info').textContent = ai ? '사운드 분석 + 오디오 측정' : `오디오 측정만 사용 (${aiErr})`;
     setStatus(`${track.artistName} – ${track.trackName}`);
   } catch (e) {
     if (my === runSeq) setStatus(`오류: ${e.message}`);
@@ -975,13 +1019,14 @@ const clampConf = (v) => Math.min(100, Math.max(0, Number(v) || 0));
 const median = (a) => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
 function persist(d, key) {
-  store.set(key, d);
+  const slim = { ...d, lyrics: String(d.lyrics || '').slice(0, 3000) };   // 저장 공간 절약
+  store.set(key, slim);
   // 같은 곡이 다른 키(검색어 키 / ID 키)로도 저장돼 있으면 함께 갱신해서 값이 어긋나지 않게 한다
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || k === key || !k.startsWith(LIB_PREFIX)) continue;
-      if (store.get(k)?.track?.trackId === d.track?.trackId) store.set(k, d);
+      if (store.get(k)?.track?.trackId === d.track?.trackId) store.set(k, slim);
     }
   } catch {}
 }
@@ -1069,15 +1114,15 @@ function renderStats(lib) {
 
   const sum = `<section class="card"><h2>한눈에 보기</h2><div class="sum">
     <div><div class="muted">추가한 곡</div><div class="v">${lib.length}곡</div></div>
-    <div><div class="muted">AI 분석이 있는 곡</div><div class="v">${A.nAI}곡</div></div>
+    <div><div class="muted">분석이 저장된 곡</div><div class="v">${A.nAI}곡</div></div>
     <div><div class="muted">평균 BPM</div><div class="v">${bpms.length ? Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length) : '—'}</div></div>
     <div><div class="muted">가장 많은 키</div><div class="v">${camTop[0] ? esc(camTop[0][0]) : '—'}</div>${camTop[0] ? `<div class="muted">${esc(camTop[0][1].name)}</div>` : ''}</div>
   </div></section>`;
 
   let tags;
-  if (!A.nAI) tags = `<section class="card"><h2>자주 나오는 사운드</h2><div class="muted">AI 분석이 저장된 곡이 없어 태그 통계를 만들 수 없습니다.</div></section>`;
+  if (!A.nAI) tags = `<section class="card"><h2>자주 나오는 사운드</h2><div class="muted">분석 결과가 저장된 곡이 없어 태그 통계를 만들 수 없습니다.</div></section>`;
   else tags = `<section class="card"><h2>자주 나오는 사운드</h2>
-    <div class="muted" style="margin-bottom:10px">태그마다 AI 확신도를 곡별로 더해, AI 분석이 있는 ${A.nAI}곡 대비 비중으로 표시합니다.${A.nAI < lib.length ? ` AI 분석이 없는 ${lib.length - A.nAI}곡은 제외됩니다.` : ''} 영어·한국어 표기가 다른 같은 태그는 일부만 합쳐집니다.</div>
+    <div class="muted" style="margin-bottom:10px">태그마다 확신도를 곡별로 더해, 분석 결과가 있는 ${A.nAI}곡 대비 비중으로 표시합니다.${A.nAI < lib.length ? ` 분석 결과가 없는 ${lib.length - A.nAI}곡은 제외됩니다.` : ''} 영어·한국어 표기가 다른 같은 태그는 일부만 합쳐집니다.</div>
     <div class="dna">${CATS.map((c) => `<div class="group"><h3>${esc(c.title)}</h3>${A.cats[c.id].length ? A.cats[c.id].map((r) =>
       `<div class="tag"><div class="l"><span>${esc(r.label)}</span><span class="muted">${r.n}곡 · ${r.share}%</span></div><div class="bar"><i style="width:${r.share}%"></i></div></div>`).join('') : '<div class="muted">데이터가 없습니다.</div>'}</div>`).join('')}</div></section>`;
 
@@ -1120,7 +1165,7 @@ function renderLib(lib) {
     const meta = [d.bpm ? `${d.bpm} BPM` : '', d.key ? `${keyName(d.key)} (${camelot(d.key)})` : '', topGenre(d), d.savedAt ? new Date(d.savedAt).toLocaleDateString('ko-KR') : ''].filter(Boolean).join(' · ');
     return `<div class="song">
       <img src="${esc(t.artworkUrl60 || '')}" alt="" />
-      <div class="meta"><b>${esc(t.trackName)}</b><span class="muted">${esc(t.artistName)}</span><span class="muted">${esc(meta || '측정값 없음')}${d.ai ? '' : ' · AI 분석 없음'}</span></div>
+      <div class="meta"><b>${esc(t.trackName)}</b><span class="muted">${esc(t.artistName)}</span><span class="muted">${esc(meta || '측정값 없음')}${d.ai ? '' : ' · 분석 결과 없음'}</span></div>
       <button type="button" class="small" data-act="open" data-key="${esc(e.key)}">열기</button>
       <button type="button" class="small" data-act="del" data-id="${esc(e.id)}">삭제</button>
     </div>`;
@@ -1190,6 +1235,7 @@ function sanitizeEntry(raw) {
   };
   const bpm = Number(raw.bpm) >= 40 && Number(raw.bpm) <= 220 ? Math.round(Number(raw.bpm)) : null;
   const k = raw.key;
+  const bpmOrig = Number(raw.bpmOrig) >= 40 && Number(raw.bpmOrig) <= 220 ? Math.round(Number(raw.bpmOrig)) : null;
   const key = k && Number.isInteger(k.pc) && k.pc >= 0 && k.pc < 12 ? { pc: k.pc, minor: Boolean(k.minor) } : null;
   let ai = null;
   if (Array.isArray(raw.ai?.categories) && raw.ai.categories.length) {
@@ -1212,7 +1258,7 @@ function sanitizeEntry(raw) {
     loud: num(fR.loud, -120, 10), dr: num(fR.dr, 0, 120), dance: num(fR.dance, 0, 10)
   } : null;
   return {
-    track, bpm, key, measured: Boolean(bpm || key || feat), engine: sStr(raw.engine, 30), tempoConf, feat, bpmManual: Boolean(raw.bpmManual), ai,
+    track, bpm, bpmOrig, key, measured: Boolean(bpm || key || feat), engine: sStr(raw.engine, 30), tempoConf, feat, bpmManual: Boolean(raw.bpmManual), ai,
     lyrics: sStr(raw.lyrics, 20000), lyricsFound: Boolean(raw.lyricsFound),
     savedAt: Number.isFinite(Number(raw.savedAt)) ? Number(raw.savedAt) : undefined
   };
@@ -1241,6 +1287,7 @@ $('impFile').onchange = async (ev) => {
 };
 
 $('mixList').addEventListener('click', (ev) => {
+  if (ev.target.closest('#mixMore')) { mixAll = !mixAll; renderMix(); return; }
   const b = ev.target.closest('button[data-act="open"]'); if (b) openSaved(b.dataset.key);
 });
 
